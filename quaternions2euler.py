@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import ephem
 from datetime import datetime, timezone
@@ -38,7 +40,7 @@ class satpos:
 		self.y = cos(dec) * sin(ra)
 		self.z = sin(dec)
 
-def quaternions2euler(date, time, q0, q1, q2, q3, TLE):
+def quaternions2euler(timestamp, q0, q1, q2, q3, TLE):
 	""" Claculates the euler angles from quaternions and writes them to the standard out.
 
 	Parameters
@@ -55,9 +57,6 @@ def quaternions2euler(date, time, q0, q1, q2, q3, TLE):
 	-------
 	all return values are written to the standard out port.
 	"""
-
-	timestamp = datetime.strptime(date +' '+ time, '%Y-%m-%d %H:%M:%S.%f')
-	timestamp = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute, timestamp.second, tzinfo=timezone.utc)
 
 	OPS = ephem.readtle(TLE.line1, TLE.line2, TLE.line3)
 
@@ -121,13 +120,24 @@ def quaternions2euler(date, time, q0, q1, q2, q3, TLE):
 	sys.stdout.write(str(timestamp) + "," + str(roll)+ "," + str(pitch)  + "," + str(yaw)  + "," + str(delta_total)+ "," + str(earth_pointing_flag)+"\n" )
 
 if __name__ == "__main__":
-	date = sys.argv[1]
-	time = sys.argv[2]
-	qw = float(sys.argv[3])
-	qx = float(sys.argv[4])
-	qy = float(sys.argv[5])
-	qz = float(sys.argv[6])
+	f_q = open('quaternion.txt', 'r')
+	f_q_line = f_q.read()
+	f_q_line = f_q_line.split()
 
-	TLE_cur = TLE('OPS-SAT', '1 44878U 19092F   20311.05327592  .00001600  00000-0  87206-4 0  9996', '2 44878  97.4702 131.9816 0012955 221.4219 138.6032 15.15762580 48986')
+	date_time_str = f_q_line[0] + ' ' + f_q_line[1]
+	print(date_time_str)
+	date_time_obj = datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S.%f')
+	qw = float(f_q_line[2])
+	qx = float(f_q_line[3])
+	qy = float(f_q_line[4])
+	qz = float(f_q_line[5])
 
-	quaternions2euler(date, time, qw, qx, qy, qz, TLE_cur)
+	f_tle = open('tle.txt', 'r')
+	f_tle_lines = f_tle.readlines()
+	tle = []
+	for line in f_tle_lines:
+		tle.append(line)
+
+	TLE_cur = TLE(tle[0], tle[1], tle[2])
+
+	quaternions2euler(date_time_obj, qw, qx, qy, qz, TLE_cur)
