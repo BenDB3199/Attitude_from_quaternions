@@ -11,3 +11,8 @@ pip3 install datetime
 pip3 install pyquaternion
 pip3 install numpy
 5. Create requirements.txt file:        pip freeze > requirements.txt
+
+### Config file
+The Config file is the config.ini file.
+
+It has the subsection conf with the item tle_path - the path to the tle file.

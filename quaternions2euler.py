@@ -7,6 +7,7 @@ from numpy import dot
 from numpy.linalg import norm
 from math import asin, acos, atan, pi, cos, sin
 from pyquaternion import Quaternion
+import configparser
 
 class TLE:
 	def __init__(self, line1, line2, line3):
@@ -73,7 +74,18 @@ def quaternions2euler(timestamp, q0, q1, q2, q3, TLE):
 		# quaternions representing the S/C body frame axes
 		Zaxis = Quaternion(0,0,0,1)
 
-		qECI = q * Zaxis * q_
+		Xaxis = Quaternion(0,1,0,0)			# quaternions representing the S/C body frame axes
+		Yaxis = Quaternion(0,0,1,0)
+		Zaxis = Quaternion(0,0,0,1)
+		qECI = q * Xaxis * q_					# transformation from body frame to ECI
+		ECIx = [qECI[-3], qECI[-2], qECI[-1]]	# X axis
+		ECIx = ECIx/norm(ECIx)
+
+		qECI = q * Yaxis * q_						
+		ECIy = [qECI[-3], qECI[-2], qECI[-1]]	# Y axis
+		ECIy = ECIy/norm(ECIy)
+
+		qECI = q * Zaxis * q_					
 		ECIz = [qECI[-3], qECI[-2], qECI[-1]]	# Z axis
 		ECIz = ECIz/norm(ECIz)
 
@@ -108,16 +120,15 @@ def quaternions2euler(timestamp, q0, q1, q2, q3, TLE):
 		n = -1 * (OPSsat/norm(OPSsat))
 
 		# total deviation angle between -Z and nadir
-		z = ECIz/norm(ECIz)
-		delta_total = acos(dot(-z, n))
+		delta_total = acos(dot(-ECIz, n))
 
 		if delta_total > 0.5*pi:
 			# 1 = not pointing to earth
 			earth_pointing_flag = 1
 
-		delta_total = 180.0 /pi * acos(dot(-z, n))
+		delta_total = 180.0 /pi * delta_total
 
-	sys.stdout.write(str(timestamp) + "," + str(roll)+ "," + str(pitch)  + "," + str(yaw)  + "," + str(delta_total)+ "," + str(earth_pointing_flag)+"\n" )
+	sys.stdout.write(str(timestamp) + "," + str(roll)+ "," + str(pitch)  + "," + str(yaw) + "," + str(delta_total)+ "," + str(earth_pointing_flag)+"\n" )
 
 if __name__ == "__main__":
 	f_q = open('quaternion.txt', 'r')
@@ -125,14 +136,16 @@ if __name__ == "__main__":
 	f_q_line = f_q_line.split()
 
 	date_time_str = f_q_line[0] + ' ' + f_q_line[1]
-	print(date_time_str)
 	date_time_obj = datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S.%f')
 	qw = float(f_q_line[2])
 	qx = float(f_q_line[3])
 	qy = float(f_q_line[4])
 	qz = float(f_q_line[5])
 
-	f_tle = open('tle.txt', 'r')
+	config = configparser.ConfigParser()
+	config.read('config.ini')
+	tle_path = config['conf']['tle_path']
+	f_tle = open(tle_path, 'r')
 	f_tle_lines = f_tle.readlines()
 	tle = []
 	for line in f_tle_lines:
