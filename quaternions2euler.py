@@ -131,7 +131,11 @@ def quaternions2euler(timestamp, q0, q1, q2, q3, TLE):
 	sys.stdout.write(str(timestamp) + "," + str(roll)+ "," + str(pitch)  + "," + str(yaw) + "," + str(delta_total)+ "," + str(earth_pointing_flag)+"\n" )
 
 if __name__ == "__main__":
-	f_q = open('quaternion.txt', 'r')
+	config = configparser.ConfigParser()
+	config.read('config.ini')
+
+	f_q_path = config['conf']['quat_path']
+	f_q = open(f_q_path, 'r')
 	f_q_line = f_q.read()
 	f_q_line = f_q_line.split()
 
