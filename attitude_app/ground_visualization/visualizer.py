@@ -4,6 +4,8 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 
+from scipy.spatial.transform import Rotation as ro
+
 """
 Contains the visualizer class to display in 2D and 3D plots the spacecraft attitude.
 """
@@ -59,7 +61,8 @@ class AttitudeVisualizer:
 
         # compute S/C body frame in ECI coordinates
         sc_body = np.array([[self._arrow_length3d, 0, 0], [0, self._arrow_length3d, 0], [0, 0, -self._arrow_length3d]])
-        sc_body_eci = sat_state.attitude.apply(sc_body)
+        q0, q1, q2, q3 = sat_state.quat_attitude
+        sc_body_eci = ro.from_quat([q1, q2, q3, q0]).apply(sc_body)  # # SciPy uses the convention ([vector], scalar).
 
         # draw S/C body frame
         scale = 15

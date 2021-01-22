@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-from math import acos, cos, sin, degrees
+from math import acos, asin, pi, atan,  cos, sin, degrees
 
 import ephem
-import numpy as np
 from numpy import dot
 from numpy.linalg import norm
-from scipy.spatial.transform import Rotation as ro
+from pyquaternion import Quaternion
 
 
 class TLE:
@@ -52,29 +51,31 @@ class SatState:
     Stores the satellite state at a specific time. All coordinates are in ECI frame.
     """
 
-    def __init__(self, position, attitude, nadir, angle_to_nadir, timestamp):
+    def __init__(self, position, quat_attitude, euler_attitude, nadir, angle_to_nadir, timestamp):
         """
         Stores the given state of the satellite at the specified time.
         """
         self.position = position
-        self.attitude = attitude
+        self.quat_attitude = quat_attitude
+        self.euler_attitude = euler_attitude
         self.nadir = nadir
         self.angle_to_nadir = angle_to_nadir
         self.timestamp = timestamp
 
     def to_attitude_string(self):
-        # convert quaternion to euler angles roll => x, pitch => y, yaw => z
-        euler_attitude = self.attitude.as_euler("ZYX", degrees=True)
-        x, y, z = self.position.x, self.position.y, self.position.z
+        # compute earth pointing flag
+        pointing_to_earth = True
+        if self.angle_to_nadir > 90:
+            pointing_to_earth = False
 
         return "Satellite state at {}\n" \
-               "position (x, y, z): [{} {} {}]\n" \
                "attitude (roll, pitch, yaw): {}\n" \
-               "angle to nadir: {}".format(
+               "angle to nadir: {}\n"\
+               "pointing to earth: {}".format(
             self.timestamp,
-            x, y, z,
-            euler_attitude,
-            self.angle_to_nadir)
+            self.euler_attitude,
+            self.angle_to_nadir,
+            pointing_to_earth)
 
 
 def compute_sat_state(timestamp, quat, TLE):
@@ -91,13 +92,30 @@ def compute_sat_state(timestamp, quat, TLE):
     The satellite state (SatState)
     """
 
-    if not (quat[0] == 0 and quat[1] == 0 and quat[2] == 0 and quat[3] == 0):
-        # quaternion parsing with Rotation from SciPy, convention is ([vector], scalar)
-        q = ro.from_quat([quat[1], quat[2], quat[3], quat[0]])
+    q0 , q1, q2, q3 = quat
+    if not (q0 == 0 and q1 == 0 and q2 == 0 and q3 == 0):
+        ### process quaternions ###
+        # pyquaternion uses the convention (scalar, [vector]). Same as OBSW.
+        q = Quaternion(q0, q1, q2, q3)
+        q_ = q.inverse
 
-        # S/C body frame axes
-        sc_body = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        sc_body_eci = q.apply(sc_body)
+        # quaternions representing the S/C body frame axes
+        sc_body_x = Quaternion(0, 1, 0, 0)  # quaternions representing the S/C body frame axes
+        sc_body_y = Quaternion(0, 0, 1, 0)
+        sc_body_z = Quaternion(0, 0, 0, 1)
+        q_eci = q * sc_body_x * q_  # transformation from body frame to ECI
+        eci_x = [q_eci[-3], q_eci[-2], q_eci[-1]]  # X axis
+        eci_x = eci_x / norm(eci_x)
+
+        q_eci = q * sc_body_y * q_
+        eci_y = [q_eci[-3], q_eci[-2], q_eci[-1]]  # Y axis
+        eci_y = eci_y / norm(eci_y)
+
+        q_eci = q * sc_body_z * q_
+        eci_z = [q_eci[-3], q_eci[-2], q_eci[-1]]  # Z axis
+        eci_z = eci_z / norm(eci_z)
+
+        # now we have the S/C body z axis expressed in ECI coordinates -> eci_z
 
         # calculate nadir direction
         OPS = ephem.readtle(TLE.line1, TLE.line2, TLE.line3)
@@ -108,6 +126,27 @@ def compute_sat_state(timestamp, quat, TLE):
         nadir = -1 * (sat_pos_l / norm(sat_pos_l))
 
         # total deviation angle between -Z and nadir
-        angle_to_nadir = degrees(acos(dot(-sc_body_eci[2], nadir)))
+        angle_to_nadir = degrees(acos(dot(-eci_z, nadir)))
 
-        return SatState(sat_pos, q, nadir, angle_to_nadir, timestamp)
+        # calculate euler angles roll => x, pitch => y, yaw => z
+        # roll
+        roll = 2 * (q0 * q1 + q2 * q3)
+        roll = roll / (1 - 2 * (q1 ** 2 + q2 ** 2))
+        roll = 180.0 / pi * atan(roll)
+        if abs(q1) >= 0.71:
+            roll = 180 + roll
+
+        # pitch
+        pitch = 2 * (q0 * q2 - q3 * q1)
+        pitch = 180.0 / pi * asin(pitch)
+        if abs(q2) >= 0.71:
+            pitch = 180 - pitch
+
+        # yaw
+        yaw = 2 * (q0 * q3 + q1 * q2)
+        yaw = yaw / (1 - 2 * (q2 ** 2 + q3 ** 2))
+        yaw = 180.0 / pi * atan(yaw)
+        if abs(q3) >= 0.71:
+            yaw = 180 + yaw
+
+        return SatState(sat_pos, quat, [roll, pitch, yaw], nadir, angle_to_nadir, timestamp)
