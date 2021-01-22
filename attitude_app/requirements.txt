@@ -1,6 +1,6 @@
 # common dependencies
 numpy==1.19.5
-pyquaternion==0.9.9
+scipy==1.5.3
 
 # attitude_processor package dependencies
 DateTime==4.3
