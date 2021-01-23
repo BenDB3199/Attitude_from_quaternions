@@ -1,18 +1,19 @@
 # Attitude_from_quaternions
-The code is supposed to take in quaternions and a timestamp from the OPS-SAT and output attitude information like euler angles.
+The code takes in quaternions  and a timestamp along with TLE data from the OPS-SAT and outputs satellite attitude information like roll, pitch, yaw and angle to nadir.
 
-### Installation of the virtual enviornment
-1. Install the virtual environment:     pip3 install --user virtualenv
-2. Create the virtal environment:       python3 -m venv venv
-3. Start the virtual environment:       source env/bin/activate
-4. Install package dependencies:        
-pip3 install ephem
-pip3 install datetime
-pip3 install pyquaternion
-pip3 install numpy
-5. Create requirements.txt file:        pip freeze > requirements.txt
+### Installation
+1. Go to the application root folder: `cd attitude_app/`
+2. Install virtualenv: `pip3 install --user virtualenv`
+3. Create the virtual environment: `python3 -m venv venv`
+4. Start the virtual environment: `source env/bin/activate`
+5. Install package dependencies: `pip3 install -r requirements.txt`
 
-### Config file
-The Config file is the config.ini file.
+### Configuration
+The configuration file `config.ini` is available to select the data used by the application (quaternion and TLE).
+Default file used are `attitude_app/data/quaternion.txt` and `attitude_app/data/tle.txt`.
 
-It has the subsection conf with the item tle_path - the path to the tle file.
+### Running
+1. If not there already, go to the application root folder: `cd attitude_app/`
+2. Run the app: `python3 app.py`
+
+
