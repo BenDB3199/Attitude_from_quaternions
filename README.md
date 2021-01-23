@@ -5,7 +5,7 @@ The code takes in quaternions  and a timestamp along with TLE data from the OPS-
 1. Go to the application root folder: `cd attitude_app/`
 2. Install virtualenv: `pip3 install --user virtualenv`
 3. Create the virtual environment: `python3 -m venv venv`
-4. Start the virtual environment: `source env/bin/activate`
+4. Start the virtual environment: `source venv/bin/activate`
 5. Install package dependencies: `pip3 install -r requirements.txt`
 
 ### Configuration
