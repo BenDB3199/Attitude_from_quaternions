@@ -14,7 +14,7 @@ def load_tle_and_quat(config_file):
 
     Returns
     -------
-    timestamp (datetime), quaternion (list(float)), TLE
+    timestamp (datetime), quaternion (tuple(float)), TLE
     """
     config = configparser.ConfigParser()
     config.read(config_file)
@@ -28,10 +28,10 @@ def load_tle_and_quat(config_file):
     # parse quaternion file
     date_time_str = f_q_line[0] + ' ' + f_q_line[1]
     date_time_obj = datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S.%f')
-    quat = [float(f_q_line[2]),
+    quat = (float(f_q_line[2]),
             float(f_q_line[3]),
             float(f_q_line[4]),
-            float(f_q_line[5])]
+            float(f_q_line[5]))
 
     # load TLE file
     tle_path = config['conf']['tle_path']

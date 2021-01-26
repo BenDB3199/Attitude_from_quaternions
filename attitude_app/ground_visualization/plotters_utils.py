@@ -17,6 +17,23 @@ class Arrow3D(FancyArrowPatch):
     """
 
     def __init__(self, x, y, z, dx, dy, dz, *args, **kwargs):
+        """ Creates a new Arrow3D artist instance.
+
+        Parameters
+        ----------
+        x : float
+            the arrow x origin
+        y : float
+            the arrow y origin
+        z: float
+            the arrow z origin
+        dx : float
+            the arrow displacement along the x axis
+        dy : float
+            the arrow displacement along the y axis
+        dz : float
+            the arrow displacement along the j axis
+        """
         super().__init__((0, 0), (0, 0), *args, **kwargs)
         self._xyz = (x, y, z)
         self._dxdydz = (dx, dy, dz)
@@ -100,9 +117,6 @@ def arc_points_between_vectors(x, y, z, v1, v2, angle, nb_points):
 	nb_points : int
 	    number of points to generate in the arc
     """
-    arc_scale = 0.55
-    v1 *= arc_scale
-    v2 *= arc_scale
     arc_origin = np.array([x, y, z])
     arc_points = []
     for t in np.linspace(0, 1, nb_points):

@@ -51,11 +51,29 @@ class SatState:
     Stores the satellite state at a specific time. All coordinates are in ECI frame.
     """
 
-    def __init__(self, position, quat_attitude, euler_attitude, nadir, angle_to_nadir, timestamp):
+    def __init__(self, position, lla, quat_attitude, euler_attitude, nadir, angle_to_nadir, timestamp):
         """
         Stores the given state of the satellite at the specified time.
+
+        Parameters
+        ----------
+        position: SatPos
+            Cartesian coordinates of the satellite in ECI frame
+        lla: tuple(float)
+            Latitude (+N), Longitude (+E) and elevation above sea level (m)
+        quat_attitude: tuple(float)
+            Satellite attitude in ECI frame: (q0, q1, q2, q3)
+        euler_attitude: tuple(float)
+            Satellite attitude in degrees in ECI frame: (roll, pitch, yaw)
+        nadir: list(float)
+            Nadir vector
+        angle_to_nadir: float
+            Total angle between -Z axis of the satellite and nadir vector in degrees
+        timestamp: datetime
+            Timestamp of the satellite state
         """
         self.position = position
+        self.lla = lla
         self.quat_attitude = quat_attitude
         self.euler_attitude = euler_attitude
         self.nadir = nadir
@@ -63,6 +81,12 @@ class SatState:
         self.timestamp = timestamp
 
     def to_attitude_string(self):
+        """ Returns a human readable message containing the attitude data of the satellite.
+
+        Returns
+        -------
+        The message (String)
+        """
         # compute earth pointing flag
         pointing_to_earth = True
         if self.angle_to_nadir > 90:
@@ -120,6 +144,7 @@ def compute_sat_state(timestamp, quat, TLE):
         # calculate nadir direction
         OPS = ephem.readtle(TLE.line1, TLE.line2, TLE.line3)
         OPS.compute(timestamp)
+        lla = (OPS.sublat, OPS.sublong, OPS.elevation)
         sat_pos = SatPos(float(OPS.ra), float(OPS.dec))
         sat_pos_l = [sat_pos.x, sat_pos.y, sat_pos.z]
 
@@ -149,4 +174,4 @@ def compute_sat_state(timestamp, quat, TLE):
         if abs(q3) >= 0.71:
             yaw = 180 + yaw
 
-        return SatState(sat_pos, quat, [roll, pitch, yaw], nadir, angle_to_nadir, timestamp)
+        return SatState(sat_pos, lla, quat, (roll, pitch, yaw), nadir, angle_to_nadir, timestamp)
