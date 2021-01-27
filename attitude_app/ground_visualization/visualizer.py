@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import time
 from math import radians, tan
 
 import cartopy.crs as ccrs
+import matplotlib.animation as animation
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,6 +20,8 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 
 class AttitudeVisualizer:
     def __init__(self):
+        self._fig = plt.figure()
+
         self._init_3d_view()
         self._init_map_view()
 
@@ -27,8 +31,7 @@ class AttitudeVisualizer:
         """
         Initializes the 3D view of the visualizer.
         """
-        self._fig3d = plt.figure()
-        self._ax3d = self._fig3d.add_subplot(111, projection='3d')
+        self._ax3d = self._fig.add_subplot(1, 2, 1, projection='3d')
 
         self._sc_body_eci = None  # set by _draw_3d_spacecraft()
 
@@ -50,8 +53,6 @@ class AttitudeVisualizer:
         """
         Initializes the map view of the visualizer
         """
-        self._fig_map = plt.figure()
-
         self._map_grid_lines_color = "blue"
         self._map_grid_lines_style = "--"
         self._map_grid_lines_width = 1
@@ -60,11 +61,11 @@ class AttitudeVisualizer:
         # perspective glob view
         self._perp_map_proj = ccrs.NearsidePerspective(central_longitude=0.0, central_latitude=0.0,
                                                        satellite_height=500000)
-        self._ax_perp_map = self._fig_map.add_subplot(2, 1, 1, projection=self._perp_map_proj)
+        self._ax_perp_map = self._fig.add_subplot(2, 2, 2, projection=self._perp_map_proj)
 
         # flat map view
         self._flat_map_proj = ccrs.PlateCarree()
-        self._ax_flat_map = self._fig_map.add_subplot(2, 1, 2, projection=self._flat_map_proj)
+        self._ax_flat_map = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
 
         self._nadir_target_marker_style = "+"
         self._camera_pointing_marker_style = "+"
@@ -75,16 +76,6 @@ class AttitudeVisualizer:
         """
         Draws the ECI coordinates frame in the 3D view.
         """
-        # set axis label
-        self._ax3d.set_xlabel("X (km)")
-        self._ax3d.set_ylabel("Y (km)")
-        self._ax3d.set_zlabel("Z (km)")
-
-        # set size of plot
-        self._ax3d.set_xlim(self._lims3d)
-        self._ax3d.set_ylim(self._lims3d)
-        self._ax3d.set_zlim(self._lims3d)
-
         # draw x, y, z axes
         x_earth, y_earth, z_earth = np.array([0, 0, 0])
         self._ax3d.arrow3D(x_earth, y_earth, z_earth, self._arrow_length3d, 0, 0, color=self._eci_frame_colors[0],
@@ -245,6 +236,16 @@ class AttitudeVisualizer:
         """
         self._ax3d.clear()
 
+        # set axis label
+        self._ax3d.set_xlabel("X (km)")
+        self._ax3d.set_ylabel("Y (km)")
+        self._ax3d.set_zlabel("Z (km)")
+
+        # set size of plot
+        self._ax3d.set_xlim(self._lims3d)
+        self._ax3d.set_ylim(self._lims3d)
+        self._ax3d.set_zlim(self._lims3d)
+
         self._draw_3d_eci_frame()
         self._draw_3d_spacecraft(sat_state)
 
@@ -289,7 +290,7 @@ class AttitudeVisualizer:
                                      linewidth=0.15, alpha=0.75)
 
         # draw coast lines and grid lines
-        self._ax_perp_map.coastlines(resolution='50m')
+        self._ax_perp_map.coastlines(resolution='110m')
         self._ax_perp_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
                                     color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
 
@@ -317,7 +318,7 @@ class AttitudeVisualizer:
                                    marker=self._camera_pointing_marker_style, color=self._camera_frustum_color)
 
         # draw coast lines and grid lines
-        self._ax_flat_map.coastlines(resolution='50m')
+        self._ax_flat_map.coastlines(resolution='110m')
         self._ax_flat_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
                                     color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
 
@@ -349,7 +350,7 @@ class AttitudeVisualizer:
         self._update_perp_map_view(sat_state, nadir_ll, minus_z_ll)
         self._update_flat_map_view(nadir_ll, minus_z_ll)
 
-    def update(self, sat_state):
+    def _update(self, sat_state):
         """ Updates the all the views of the visualizer with the given satellite data.
 
         Parameters
@@ -360,16 +361,39 @@ class AttitudeVisualizer:
         self._update_3d_view(sat_state)
         self._update_map_views(sat_state)
 
-    def show(self):
+    def show(self, sat_state):
         """
-        Shows the different views of the visualizer.
+        Visualize the provided satellite state.
         """
+        self._update(sat_state)
+        self._add_legend()
+
+        # show
+        plt.show()
+
+    def animate(self, sat_state_generator, interval=50):
+        """
+        Visualize multiple satellite state. The visualizer updates itself with new satellite state provided by a satellite state generator.
+        """
+
+        def on_new_frame(frame_number):
+            start = time.time()
+
+            sat_state = next(sat_state_generator)
+            if sat_state is not None:
+                self._update(sat_state)
+
+            end = time.time()
+            frame_time = end - start
+            print(frame_time)
+
+        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval)
         self._add_legend()
         plt.show()
 
     def _add_3d_view_legend(self):
         """
-        Adds the legend to the 3D view of the visualizer.
+        Adds the legend for the 3D view of the visualizer.
         """
         x_eci_legend = mlines.Line2D([], [], color=self._eci_frame_colors[0],
                                      markersize=15, label='ECI x')
@@ -390,15 +414,14 @@ class AttitudeVisualizer:
                                      markersize=15, label='Nadir vector', linestyle=self._nadir_line_style)
         angle_to_nadir_legend = mlines.Line2D([], [], color=self._angle_to_nadir_color,
                                               markersize=15, label='Angle to nadir', linestyle=self._nadir_line_style)
-        self._fig3d.legend(
+        self._fig.legend(
             handles=[x_eci_legend, y_eci_legend, z_eci_legend, x_sc_legend, y_sc_legend, z_sc_legend,
-                     camera_frustum_legend, nadir_legend, angle_to_nadir_legend])
+                     camera_frustum_legend, nadir_legend, angle_to_nadir_legend], loc="upper left")
 
     def _add_map_views_legend(self):
         """
-        Adds the legend to the maps view of the visualizer.
+        Adds the legend for the map views of the visualizer.
         """
-        # perspective map
         nadir_coverage_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
                                               marker="s", linestyle='None',
                                               markersize=8, label='Nadir target')
@@ -406,11 +429,11 @@ class AttitudeVisualizer:
                                                marker="s", linestyle='None',
                                                markersize=8, label='Camera pointing')
 
-        self._fig_map.legend(handles=[nadir_coverage_legend, camera_coverage_legend])
+        self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="upper right")
 
     def _add_legend(self):
         """
-        Adds the legend to all the views of the visualizer.
+        Adds the legend for all the views of the visualizer.
         """
         self._add_3d_view_legend()
         self._add_map_views_legend()

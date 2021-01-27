@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from math import acos, asin, pi, atan,  cos, sin, degrees
+from math import acos, asin, pi, atan, cos, sin, degrees
 
 import ephem
 from numpy import dot
@@ -95,7 +95,7 @@ class SatState:
 
         return "Satellite state at {}\n" \
                "attitude (roll, pitch, yaw): {}\n" \
-               "angle to nadir: {}\n"\
+               "angle to nadir: {}\n" \
                "pointing to earth: {}".format(
             self.timestamp,
             self.euler_attitude,
@@ -117,7 +117,7 @@ def compute_sat_state(timestamp, quat, TLE):
     The satellite state (SatState)
     """
 
-    q0 , q1, q2, q3 = quat
+    q0, q1, q2, q3 = quat
     if not (q0 == 0 and q1 == 0 and q2 == 0 and q3 == 0):
         ### process quaternions ###
         # pyquaternion uses the convention (scalar, [vector]). Same as OBSW.
@@ -176,3 +176,17 @@ def compute_sat_state(timestamp, quat, TLE):
             yaw = 180 + yaw
 
         return SatState(sat_pos, lla, quat, (roll, pitch, yaw), nadir, angle_to_nadir, timestamp)
+
+
+def create_sat_state_generator(timestamped_quats, tle):
+    """ Creates a simple satellite state generator using the prodived TLE and timestamped quaternions.
+
+    Parameters
+    ----------
+    timestamped_quats : list(tuple(datetime, tuple(float))
+        the list of timestamped quaternions
+    tle : TLE
+        the TLE
+    """
+    for timestamp, quat in timestamped_quats:
+        yield compute_sat_state(timestamp, quat, tle)
