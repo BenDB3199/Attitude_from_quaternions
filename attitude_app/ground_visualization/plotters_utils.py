@@ -116,6 +116,10 @@ def arc_points_between_vectors(x, y, z, v1, v2, angle, nb_points):
 	    size of the arc in radians
 	nb_points : int
 	    number of points to generate in the arc
+
+	Returns
+    -------
+    np.array: the points
     """
     arc_origin = np.array([x, y, z])
     arc_points = []
@@ -125,3 +129,45 @@ def arc_points_between_vectors(x, y, z, v1, v2, angle, nb_points):
             sin((1 - t) * angle) / sin(angle) * v1 + sin(t * angle) / sin(angle) * v2 + arc_origin)
 
     return np.array(arc_points)
+
+
+def los_to_earth(position, pointing):
+    """ Finds the intersection of a pointing vector u and starting point s with the WGS-84 geoid
+    (thanks to https://stephenhartzell.medium.com/satellite-line-of-sight-intersection-with-earth-d786b4a6a9b6)
+
+    Parameters
+	----------
+        position (np.array): length 3 array defining the starting point location(s) in meters
+        pointing (np.array): length 3 array defining the pointing vector(s) (must be a unit vector)
+    Returns
+    -------
+        np.array: the point(s) of intersection with the surface of the Earth in meters or None if the vector doesn't
+        point to earth
+    """
+
+    a = 6371008.7714
+    b = 6371008.7714
+    c = 6356752.314245
+    x = position[0]
+    y = position[1]
+    z = position[2]
+    u = pointing[0]
+    v = pointing[1]
+    w = pointing[2]
+
+    value = -a ** 2 * b ** 2 * w * z - a ** 2 * c ** 2 * v * y - b ** 2 * c ** 2 * u * x
+    radical = a ** 2 * b ** 2 * w ** 2 + a ** 2 * c ** 2 * v ** 2 - a ** 2 * v ** 2 * z ** 2 + 2 * a ** 2 * v * w * y * z - a ** 2 * w ** 2 * y ** 2 + b ** 2 * c ** 2 * u ** 2 - b ** 2 * u ** 2 * z ** 2 + 2 * b ** 2 * u * w * x * z - b ** 2 * w ** 2 * x ** 2 - c ** 2 * u ** 2 * y ** 2 + 2 * c ** 2 * u * v * x * y - c ** 2 * v ** 2 * x ** 2
+    magnitude = a ** 2 * b ** 2 * w ** 2 + a ** 2 * c ** 2 * v ** 2 + b ** 2 * c ** 2 * u ** 2
+
+    if radical < 0:
+        return None
+    d = (value - a * b * c * np.sqrt(radical)) / magnitude
+
+    if d < 0:
+        return None
+
+    return np.array([
+        x + d * u,
+        y + d * v,
+        z + d * w,
+    ])

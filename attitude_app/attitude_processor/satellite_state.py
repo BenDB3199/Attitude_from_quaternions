@@ -31,8 +31,8 @@ class SatPos:
     Stores cartesian coordinates.
     """
 
-    def __init__(self, ra, dec):
-        """ Computes the cartesian coordinates from equatorial coordinates assuming radius of 1 (normed).
+    def __init__(self, ra, dec, altitude):
+        """ Computes the cartesian coordinates from equatorial coordinates.
 
         Parameters
         ----------
@@ -41,9 +41,10 @@ class SatPos:
         dec : float
             declination
         """
-        self.x = cos(dec) * cos(ra)
-        self.y = cos(dec) * sin(ra)
-        self.z = sin(dec)
+        radius = (altitude + ephem.earth_radius) / 1000.0
+        self.x = radius * cos(dec) * cos(ra)
+        self.y = radius * cos(dec) * sin(ra)
+        self.z = radius * sin(dec)
 
 
 class SatState:
@@ -144,8 +145,8 @@ def compute_sat_state(timestamp, quat, TLE):
         # calculate nadir direction
         OPS = ephem.readtle(TLE.line1, TLE.line2, TLE.line3)
         OPS.compute(timestamp)
-        lla = (OPS.sublat, OPS.sublong, OPS.elevation)
-        sat_pos = SatPos(float(OPS.ra), float(OPS.dec))
+        lla = (degrees(OPS.sublat), degrees(OPS.sublong), OPS.elevation)
+        sat_pos = SatPos(float(OPS.ra), float(OPS.dec), float(OPS.elevation))
         sat_pos_l = [sat_pos.x, sat_pos.y, sat_pos.z]
 
         nadir = -1 * (sat_pos_l / norm(sat_pos_l))

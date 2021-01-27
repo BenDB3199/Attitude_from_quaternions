@@ -11,3 +11,4 @@ pandas==1.1.3
 matplotlib==3.3.2
 PyQT5==5.12.1
 scipy==1.5.3
+pymap3d==2.4.3
