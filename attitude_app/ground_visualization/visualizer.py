@@ -35,7 +35,7 @@ class AttitudeVisualizer:
 
         self._sc_body_eci = None  # set by _draw_3d_spacecraft()
 
-        self._lims3d = [-7500, 7500]  # 3d axes limites
+        self._lims3d = [-6000, 6000]  # 3d axes limites
         self._arrow_style3d = "->"
         self._arrow_scale3d = 15
         self._arrow_length3d = 4000
@@ -58,29 +58,36 @@ class AttitudeVisualizer:
         self._map_grid_lines_width = 1
         self._map_grid_labels_enabled = True
 
-        # perspective glob view
-        self._perp_map_proj = ccrs.NearsidePerspective(central_longitude=0.0, central_latitude=0.0,
-                                                       satellite_height=500000)
-        self._ax_perp_map = self._fig.add_subplot(2, 2, 2, projection=self._perp_map_proj)
-
         # flat map view
         self._nadir_target_marker_style = "+"
         self._camera_pointing_marker_style = "+"
-        self._nadir_coverage_marker_style = "o"
-        self._camera_coverage_marker_style = "o"
 
         self._flat_map_proj = ccrs.PlateCarree()
-        self._ax_flat_map = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
+        self._ax_flat_map = self._fig.add_subplot(2, 2, 2, projection=self._flat_map_proj)
         self._ax_flat_map.set_global()
         self._ax_flat_map.coastlines(resolution='110m')
         self._ax_flat_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
                                     color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
         self._nadir_target, = self._ax_flat_map.plot(0, 0, markersize=20,
-                                                    marker=self._nadir_target_marker_style,
-                                                    color=self._nadir_vector_color)
+                                                     marker=self._nadir_target_marker_style,
+                                                     color=self._nadir_vector_color)
         self._camera_pointing, = self._ax_flat_map.plot(0, 0, markersize=20,
-                                                       marker=self._camera_pointing_marker_style,
-                                                       color=self._camera_frustum_color)
+                                                        marker=self._camera_pointing_marker_style,
+                                                        color=self._camera_frustum_color)
+
+        # zoomed flat map view
+        self._nadir_coverage_marker_style = "o"
+        self._camera_coverage_marker_style = "o"
+        self._zoom_margin = 5
+
+        self._ax_flat_map_zoom = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
+        self._ax_flat_map_zoom.coastlines(resolution='50m')
+        self._nadir_coverage = self._ax_flat_map_zoom.tissot(rad_km=50,
+                                                        lats=0, lons=0, n_samples=15,
+                                                        facecolor=self._nadir_vector_color,
+                                                        edgecolor=self._nadir_vector_color,
+                                                        linewidth=0.15, alpha=0.75)
+        self._camera_coverage = None
 
     def _draw_3d_eci_frame(self):
         """
@@ -261,8 +268,8 @@ class AttitudeVisualizer:
 
         self._ax3d.set_title("Satellite attitude at {}".format(sat_state.timestamp))
 
-    def _update_perp_map_view(self, sat_state, nadir_ll, minus_z_ll):
-        """ Updates the perspective map view of the visualizer with the given satellite data.
+    def _update_flat_map_view(self, sat_state, nadir_ll, minus_z_ll):
+        """ Updates the flat map view of the visualizer with the given satellite data.
 
         Parameters
         ----------
@@ -274,46 +281,14 @@ class AttitudeVisualizer:
             latitude and longitude at which the satellite body minus_z axis points
         """
 
-        # adjust projection location
+        margin = self._zoom_margin
         map_center = nadir_ll
         if minus_z_ll is not None:
-            map_center = (map_center + minus_z_ll) / 2.0
-        self._perp_map_proj = ccrs.NearsidePerspective(central_longitude=map_center[1],
-                                                       central_latitude=map_center[0],
-                                                       satellite_height=sat_state.lla[2])
-        self._ax_perp_map.projection = self._perp_map_proj
+            map_center = minus_z_ll
 
-        self._ax_perp_map.clear()
-
-        camera_coverage_radius = tan(radians(self._camera_fov / 2.0)) * (sat_state.lla[2] / 1000.0)
-
-        # plot nadir coverage
-        self._ax_perp_map.tissot(rad_km=camera_coverage_radius,
-                                 lats=nadir_ll[0], lons=nadir_ll[1], n_samples=15,
-                                 facecolor=self._nadir_vector_color, edgecolor=self._nadir_vector_color,
-                                 linewidth=0.15, alpha=0.75)
-        # plot camera coverage
-        if minus_z_ll is not None:
-            self._ax_perp_map.tissot(rad_km=camera_coverage_radius,
-                                     lats=minus_z_ll[0], lons=minus_z_ll[1], n_samples=15,
-                                     facecolor=self._camera_frustum_color, edgecolor=self._camera_frustum_color,
-                                     linewidth=0.15, alpha=0.75)
-
-        # draw coast lines and grid lines
-        self._ax_perp_map.coastlines(resolution='110m')
-        self._ax_perp_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
-                                    color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
-
-    def _update_flat_map_view(self, nadir_ll, minus_z_ll):
-        """ Updates the flat map view of the visualizer with the given satellite data.
-
-        Parameters
-        ----------
-        nadir_ll : np.array(float)
-            latitude and longitude at which the nadir vector points
-        minus_z_ll : np.array(float) or None if not pointing at earth
-            latitude and longitude at which the satellite body minus_z axis points
-        """
+        self._ax_flat_map_zoom.set_extent(
+            [map_center[1] - margin, map_center[1] + margin, map_center[0] - margin, map_center[0] + margin],
+            crs=self._flat_map_proj)
 
         # plot nadir target
         self._nadir_target.set_data(nadir_ll[1], nadir_ll[0])
@@ -322,7 +297,29 @@ class AttitudeVisualizer:
         if minus_z_ll is not None:
             self._camera_pointing.set_data(minus_z_ll[1], minus_z_ll[0])
         else:
-            self._camera_pointing.set_data(200, 100) # plot outside the map
+            self._camera_pointing.set_data(200, 100)  # plot outside the map
+
+        camera_coverage_radius = tan(radians(self._camera_fov / 2.0)) * (sat_state.lla[2] / 1000.0)
+
+        # plot nadir coverage
+        self._nadir_coverage.remove()
+        self._nadir_coverage = self._ax_flat_map_zoom.tissot(rad_km=camera_coverage_radius,
+                                                        lats=nadir_ll[0], lons=nadir_ll[1], n_samples=15,
+                                                        facecolor=self._nadir_vector_color,
+                                                        edgecolor=self._nadir_vector_color,
+                                                        linewidth=0.15, alpha=0.75)
+        # plot camera coverage
+        if self._camera_coverage is not None:
+            self._camera_coverage.remove()
+
+        if minus_z_ll is not None:
+            self._camera_coverage = self._ax_flat_map_zoom.tissot(rad_km=camera_coverage_radius,
+                                                             lats=minus_z_ll[0], lons=minus_z_ll[1], n_samples=15,
+                                                             facecolor=self._camera_frustum_color,
+                                                             edgecolor=self._camera_frustum_color,
+                                                             linewidth=0.15, alpha=0.75)
+        else:
+            self._camera_coverage = None
 
     def _update_map_views(self, sat_state):
         """ Updates the map views of the visualizer with the given satellite data.
@@ -349,8 +346,7 @@ class AttitudeVisualizer:
             minus_z_ll = np.hstack(
                 pm.eci2geodetic(minus_z_los[0], minus_z_los[1], minus_z_los[2], sat_state.timestamp)[:2])
 
-        self._update_perp_map_view(sat_state, nadir_ll, minus_z_ll)
-        self._update_flat_map_view(nadir_ll, minus_z_ll)
+        self._update_flat_map_view(sat_state, nadir_ll, minus_z_ll)
 
     def _update(self, sat_state):
         """ Updates the all the views of the visualizer with the given satellite data.
@@ -424,14 +420,24 @@ class AttitudeVisualizer:
         """
         Adds the legend for the map views of the visualizer.
         """
-        nadir_coverage_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
-                                              marker="s", linestyle='None',
-                                              markersize=8, label='Nadir target')
-        camera_coverage_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
-                                               marker="s", linestyle='None',
-                                               markersize=8, label='Camera pointing')
+        # flat map view
+        nadir_target_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
+                                              marker=self._nadir_target_marker_style, linestyle='None',
+                                              markersize=8, label='Expected nadir pointing')
+        camera_pointing_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
+                                               marker=self._camera_pointing_marker_style, linestyle='None',
+                                               markersize=8, label='Acutal camera pointing')
 
-        self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="upper right")
+        self._fig.legend(handles=[nadir_target_legend, camera_pointing_legend], loc="upper right")
+
+        # zoomed
+        nadir_coverage_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
+                                              marker=self._nadir_coverage_marker_style, linestyle='None',
+                                              markersize=8, label='Expected nadir coverage')
+        camera_coverage_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
+                                               marker=self._camera_coverage_marker_style, linestyle='None',
+                                               markersize=8, label='Actual camera coverage')
+        self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="lower right")
 
     def _add_legend(self):
         """

@@ -21,11 +21,11 @@ def run_on_file():
     Runs the visualizer in animation mode. In this mode, the visualizer updates itself with new satellite state provided
     by a satellite state generator.
     """
-    timestamped_quats, tle = load_tle_and_quat('config.ini', nb_lines=200)
+    timestamped_quats, tle = load_tle_and_quat('config.ini', nb_lines=-1)
     sat_state_generator = create_sat_state_generator(timestamped_quats, tle)
 
     v = visualizer.AttitudeVisualizer()
-    v.animate(sat_state_generator, interval=13)
+    v.animate(sat_state_generator, interval=33)
 
 
 if __name__ == '__main__':
