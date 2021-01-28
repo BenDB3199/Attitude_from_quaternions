@@ -64,13 +64,23 @@ class AttitudeVisualizer:
         self._ax_perp_map = self._fig.add_subplot(2, 2, 2, projection=self._perp_map_proj)
 
         # flat map view
-        self._flat_map_proj = ccrs.PlateCarree()
-        self._ax_flat_map = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
-
         self._nadir_target_marker_style = "+"
         self._camera_pointing_marker_style = "+"
         self._nadir_coverage_marker_style = "o"
         self._camera_coverage_marker_style = "o"
+
+        self._flat_map_proj = ccrs.PlateCarree()
+        self._ax_flat_map = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
+        self._ax_flat_map.set_global()
+        self._ax_flat_map.coastlines(resolution='110m')
+        self._ax_flat_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
+                                    color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
+        self._nadir_target, = self._ax_flat_map.plot(0, 0, markersize=20,
+                                                    marker=self._nadir_target_marker_style,
+                                                    color=self._nadir_vector_color)
+        self._camera_pointing, = self._ax_flat_map.plot(0, 0, markersize=20,
+                                                       marker=self._camera_pointing_marker_style,
+                                                       color=self._camera_frustum_color)
 
     def _draw_3d_eci_frame(self):
         """
@@ -304,23 +314,15 @@ class AttitudeVisualizer:
         minus_z_ll : np.array(float) or None if not pointing at earth
             latitude and longitude at which the satellite body minus_z axis points
         """
-        self._ax_flat_map.clear()
-
-        self._ax_flat_map.set_extent([-180, 180, -90, 90], self._flat_map_proj)
 
         # plot nadir target
-        self._ax_flat_map.plot(nadir_ll[1], nadir_ll[0], markersize=15,
-                               marker=self._nadir_target_marker_style, color=self._nadir_vector_color)
+        self._nadir_target.set_data(nadir_ll[1], nadir_ll[0])
 
         # plot camera pointing
         if minus_z_ll is not None:
-            self._ax_flat_map.plot(minus_z_ll[1], minus_z_ll[0], markersize=15,
-                                   marker=self._camera_pointing_marker_style, color=self._camera_frustum_color)
-
-        # draw coast lines and grid lines
-        self._ax_flat_map.coastlines(resolution='110m')
-        self._ax_flat_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
-                                    color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
+            self._camera_pointing.set_data(minus_z_ll[1], minus_z_ll[0])
+        else:
+            self._camera_pointing.set_data(200, 100) # plot outside the map
 
     def _update_map_views(self, sat_state):
         """ Updates the map views of the visualizer with the given satellite data.
