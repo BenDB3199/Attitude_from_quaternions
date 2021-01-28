@@ -25,7 +25,7 @@ def run_on_file():
     sat_state_generator = create_sat_state_generator(timestamped_quats, tle, step=1)
 
     v = visualizer.AttitudeVisualizer()
-    v.animate(sat_state_generator, interval=83)
+    v.animate(sat_state_generator, interval=200, save=True)
 
 
 if __name__ == '__main__':

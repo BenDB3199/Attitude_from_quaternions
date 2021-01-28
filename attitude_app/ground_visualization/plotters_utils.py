@@ -79,28 +79,6 @@ def _arrow3D(ax, x, y, z, dx, dy, dz, *args, **kwargs):
 setattr(Axes3D, 'arrow3D', _arrow3D)
 
 
-def set_size(w, h, ax=None):
-    """ Convenient method to set the size of a matplotlib Axes
-
-    Parameters
-	----------
-    w : float
-        width in inches
-    h : float
-        height in inches
-    ax : Axes3D
-        the matplotlib Axes
-    """
-    if not ax: ax = plt.gca()
-    l = ax.figure.subplotpars.left
-    r = ax.figure.subplotpars.right
-    t = ax.figure.subplotpars.top
-    b = ax.figure.subplotpars.bottom
-    figw = float(w) / (r - l)
-    figh = float(h) / (t - b)
-    ax.figure.set_size_inches(figw, figh)
-
-
 def arc_points_between_vectors(x, y, z, v1, v2, angle, nb_points):
     """ Returns points constituting the arc between 2 vectors that both starts at x,y,z
 

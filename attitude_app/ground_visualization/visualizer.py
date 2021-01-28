@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from math import radians, tan
+from datetime import datetime
 
 import cartopy.crs as ccrs
 import matplotlib.animation as animation
@@ -19,7 +20,7 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 
 class AttitudeVisualizer:
     def __init__(self):
-        self._fig = plt.figure()
+        self._fig = plt.figure(figsize=(14,7))
         self._fig.canvas.set_window_title("OPS-SAT attitude visualizer")
 
         self._init_3d_view()
@@ -403,19 +404,60 @@ class AttitudeVisualizer:
         # show
         plt.show()
 
-    def animate(self, sat_state_generator, interval=50):
-        """
-        Visualize multiple satellite state. The visualizer updates itself with new satellite state provided by a satellite state generator.
-        """
+    def animate(self, sat_state_generator, interval=50, save=False):
+        """ Visualize multiple satellite state. The visualizer updates itself with new satellite state provided by a satellite state generator.
 
+        Parameters
+        ----------
+        sat_state_generator : generator of SatState
+            generator returning the next satellite state to use for the next frame
+        interval : int
+            interval between frames in milliseconds
+        save : bool
+            If true, saves the animatio in an mp4 file
+        """
+        self._add_legend()
+
+        # catch keyboard key press event
+        def key_press_event(event):
+            if event.key == 'p':
+               self._pause_animation()
+
+        self._fig.canvas.mpl_connect('key_press_event', key_press_event)
+
+        # define frame function
         def on_new_frame(frame_number):
             sat_state = next(sat_state_generator)
             if sat_state is not None:
                 self._update(sat_state)
 
+        self._is_animation_running = True
         self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval, cache_frame_data=False)
-        self._add_legend()
-        plt.show()
+
+        # setup saving is requested
+        if save:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            video_file_name = 'attitude-{}.mp4'.format(timestamp)
+            try:
+                Writer = animation.writers['ffmpeg']
+                writer = Writer(fps=int(1000/interval), metadata=dict(artist='Me'), bitrate=1800)
+
+                self._animation.save(video_file_name, writer=writer)
+            except Exception as e:
+                print(e)
+        else:
+            plt.show()
+
+    def _pause_animation(self):
+        """
+        Pauses or start the visualizer animation.
+        """
+        if self._is_animation_running:
+            self._animation.event_source.stop()
+            self._is_animation_running = False
+        else:
+            self._animation.event_source.start()
+            self._is_animation_running = True
 
     def _add_3d_view_legend(self):
         """
@@ -454,7 +496,7 @@ class AttitudeVisualizer:
                                             markersize=8, label='Expected nadir pointing')
         camera_pointing_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
                                                marker=self._camera_pointing_marker_style, linestyle='None',
-                                               markersize=8, label='Acutal camera pointing')
+                                               markersize=8, label='Actual camera pointing')
 
         self._fig.legend(handles=[nadir_target_legend, camera_pointing_legend], loc="upper right")
 
