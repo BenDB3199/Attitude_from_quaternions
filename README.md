@@ -7,6 +7,18 @@ The code takes in quaternions  and a timestamp along with TLE data from the OPS-
 3. Create the virtual environment: `python3 -m venv venv`
 4. Start the virtual environment: `source venv/bin/activate`
 5. Install package dependencies: `pip3 install -r requirements.txt`
+6. Install cartopy package
+```
+# install non-python dependencies, example is for Ubuntu,
+# see https://scitools.org.uk/cartopy/docs/latest/installing.html for details
+sudo apt install proj-bin libgeos-dev
+
+# install python dependency
+pip3 install --no-binary shapely shapely
+
+# install cartopy python package
+pip3 install cartopy
+```
 
 ### Configuration
 The configuration file `config.ini` is available to select the data used by the application (quaternion and TLE).

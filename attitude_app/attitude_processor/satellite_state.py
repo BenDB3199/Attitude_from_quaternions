@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from math import acos, asin, pi, atan,  cos, sin, degrees
+from math import acos, asin, pi, atan, cos, sin, degrees
 
 import ephem
 from numpy import dot
@@ -31,8 +31,8 @@ class SatPos:
     Stores cartesian coordinates.
     """
 
-    def __init__(self, ra, dec):
-        """ Computes the cartesian coordinates from equatorial coordinates assuming radius of 1 (normed).
+    def __init__(self, ra, dec, altitude):
+        """ Computes the cartesian coordinates from equatorial coordinates.
 
         Parameters
         ----------
@@ -41,9 +41,10 @@ class SatPos:
         dec : float
             declination
         """
-        self.x = cos(dec) * cos(ra)
-        self.y = cos(dec) * sin(ra)
-        self.z = sin(dec)
+        radius = (altitude + ephem.earth_radius) / 1000.0
+        self.x = radius * cos(dec) * cos(ra)
+        self.y = radius * cos(dec) * sin(ra)
+        self.z = radius * sin(dec)
 
 
 class SatState:
@@ -51,11 +52,29 @@ class SatState:
     Stores the satellite state at a specific time. All coordinates are in ECI frame.
     """
 
-    def __init__(self, position, quat_attitude, euler_attitude, nadir, angle_to_nadir, timestamp):
+    def __init__(self, position, lla, quat_attitude, euler_attitude, nadir, angle_to_nadir, timestamp):
         """
         Stores the given state of the satellite at the specified time.
+
+        Parameters
+        ----------
+        position: SatPos
+            Cartesian coordinates of the satellite in ECI frame
+        lla: tuple(float)
+            Latitude (+N), Longitude (+E) and elevation above sea level (m)
+        quat_attitude: tuple(float)
+            Satellite attitude in ECI frame: (q0, q1, q2, q3)
+        euler_attitude: tuple(float)
+            Satellite attitude in degrees in ECI frame: (roll, pitch, yaw)
+        nadir: list(float)
+            Nadir vector
+        angle_to_nadir: float
+            Total angle between -Z axis of the satellite and nadir vector in degrees
+        timestamp: datetime
+            Timestamp of the satellite state
         """
         self.position = position
+        self.lla = lla
         self.quat_attitude = quat_attitude
         self.euler_attitude = euler_attitude
         self.nadir = nadir
@@ -63,6 +82,12 @@ class SatState:
         self.timestamp = timestamp
 
     def to_attitude_string(self):
+        """ Returns a human readable message containing the attitude data of the satellite.
+
+        Returns
+        -------
+        The message (String)
+        """
         # compute earth pointing flag
         pointing_to_earth = True
         if self.angle_to_nadir > 90:
@@ -70,7 +95,7 @@ class SatState:
 
         return "Satellite state at {}\n" \
                "attitude (roll, pitch, yaw): {}\n" \
-               "angle to nadir: {}\n"\
+               "angle to nadir: {}\n" \
                "pointing to earth: {}".format(
             self.timestamp,
             self.euler_attitude,
@@ -92,7 +117,7 @@ def compute_sat_state(timestamp, quat, TLE):
     The satellite state (SatState)
     """
 
-    q0 , q1, q2, q3 = quat
+    q0, q1, q2, q3 = quat
     if not (q0 == 0 and q1 == 0 and q2 == 0 and q3 == 0):
         ### process quaternions ###
         # pyquaternion uses the convention (scalar, [vector]). Same as OBSW.
@@ -120,7 +145,8 @@ def compute_sat_state(timestamp, quat, TLE):
         # calculate nadir direction
         OPS = ephem.readtle(TLE.line1, TLE.line2, TLE.line3)
         OPS.compute(timestamp)
-        sat_pos = SatPos(float(OPS.ra), float(OPS.dec))
+        lla = (degrees(OPS.sublat), degrees(OPS.sublong), OPS.elevation)
+        sat_pos = SatPos(float(OPS.ra), float(OPS.dec), float(OPS.elevation))
         sat_pos_l = [sat_pos.x, sat_pos.y, sat_pos.z]
 
         nadir = -1 * (sat_pos_l / norm(sat_pos_l))
@@ -149,4 +175,21 @@ def compute_sat_state(timestamp, quat, TLE):
         if abs(q3) >= 0.71:
             yaw = 180 + yaw
 
-        return SatState(sat_pos, quat, [roll, pitch, yaw], nadir, angle_to_nadir, timestamp)
+        return SatState(sat_pos, lla, quat, (roll, pitch, yaw), nadir, angle_to_nadir, timestamp)
+
+
+def create_sat_state_generator(timestamped_quats, tle, step=1):
+    """ Creates a simple satellite state generator using the prodived TLE and timestamped quaternions.
+
+    Parameters
+    ----------
+    timestamped_quats : list(tuple(datetime, tuple(float))
+        the list of timestamped quaternions
+    tle : TLE
+        the TLE
+    step: int
+        a step of 1 means we return every quaternions, 2 means we return 1 quaternions every 2 quaternions and so on.
+        Default value is 1.
+    """
+    for i in range(0, len(timestamped_quats), step):
+        yield compute_sat_state(timestamped_quats[i][0], timestamped_quats[i][1], tle)
