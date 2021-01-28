@@ -22,10 +22,10 @@ def run_on_file():
     by a satellite state generator.
     """
     timestamped_quats, tle = load_tle_and_quat('config.ini', nb_lines=-1)
-    sat_state_generator = create_sat_state_generator(timestamped_quats, tle)
+    sat_state_generator = create_sat_state_generator(timestamped_quats, tle, step=1)
 
     v = visualizer.AttitudeVisualizer()
-    v.animate(sat_state_generator, interval=33)
+    v.animate(sat_state_generator, interval=83)
 
 
 if __name__ == '__main__':

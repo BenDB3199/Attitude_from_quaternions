@@ -35,8 +35,7 @@ class Arrow3D(FancyArrowPatch):
             the arrow displacement along the j axis
         """
         super().__init__((0, 0), (0, 0), *args, **kwargs)
-        self._xyz = (x, y, z)
-        self._dxdydz = (dx, dy, dz)
+        self.set_data(x, y, z, dx, dy, dz)
 
     def draw(self, renderer):
         x1, y1, z1 = self._xyz
@@ -47,6 +46,9 @@ class Arrow3D(FancyArrowPatch):
         self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
         super().draw(renderer)
 
+    def set_data(self, x, y, z, dx, dy, dz):
+        self._xyz = (x, y, z)
+        self._dxdydz = (dx, dy, dz)
 
 def _arrow3D(ax, x, y, z, dx, dy, dz, *args, **kwargs):
     """ Add an Arrow3D artist to an Axes3D instance.
@@ -69,6 +71,8 @@ def _arrow3D(ax, x, y, z, dx, dy, dz, *args, **kwargs):
     """
     arrow = Arrow3D(x, y, z, dx, dy, dz, *args, **kwargs)
     ax.add_artist(arrow)
+
+    return arrow
 
 
 # enhance Axes3D class with arrow3D function

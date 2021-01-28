@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import time
 from math import radians, tan
 
 import cartopy.crs as ccrs
@@ -21,6 +20,7 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 class AttitudeVisualizer:
     def __init__(self):
         self._fig = plt.figure()
+        self._fig.canvas.set_window_title("OPS-SAT attitude visualizer")
 
         self._init_3d_view()
         self._init_map_view()
@@ -31,14 +31,13 @@ class AttitudeVisualizer:
         """
         Initializes the 3D view of the visualizer.
         """
-        self._ax3d = self._fig.add_subplot(1, 2, 1, projection='3d')
-
         self._sc_body_eci = None  # set by _draw_3d_spacecraft()
 
-        self._lims3d = [-6000, 6000]  # 3d axes limites
+        # drawings properties
+        self._lims3d = [-6000, 6000]
+        self._arrow_length3d = 4000
         self._arrow_style3d = "->"
         self._arrow_scale3d = 15
-        self._arrow_length3d = 4000
         self._arrow_weight3d = 1.5
         self._eci_frame_colors = ["red", "green", "blue"]
         self._sc_frame_colors = ["lightcoral", "yellowgreen", "skyblue"]
@@ -48,6 +47,74 @@ class AttitudeVisualizer:
         self._camera_frustum_color = "turquoise"
         self._camera_frustum_scale = 0.5
         self._camera_frustum_linestyle = "--"
+
+        self._ax3d = self._fig.add_subplot(1, 2, 1, projection='3d')
+
+        # set axis label
+        self._ax3d.set_xlabel("X (km)")
+        self._ax3d.set_ylabel("Y (km)")
+        self._ax3d.set_zlabel("Z (km)")
+
+        # set size of plot
+        self._ax3d.set_xlim(self._lims3d)
+        self._ax3d.set_ylim(self._lims3d)
+        self._ax3d.set_zlim(self._lims3d)
+
+        self._draw_3d_eci_frame()
+
+        # s/c body
+        self._sc_body_3d, = self._ax3d.plot(0, 0, 0, marker="s", markersize=4, color="grey")
+
+        # draw S/C body frame
+        self._sc_body_arrow3d = []
+        for axis in range(3):
+            self._sc_body_arrow3d.append(self._ax3d.arrow3D(0, 0, 0, 0, 0, 0,
+                                                            color=self._sc_frame_colors[axis],
+                                                            mutation_scale=self._arrow_scale3d,
+                                                            arrowstyle=self._arrow_style3d,
+                                                            lw=self._arrow_weight3d))
+
+        # nadir vector
+        self._nadir_arrow = self._ax3d.arrow3D(0, 0, 0, 1, 1, 1,
+                                               color=self._nadir_vector_color,
+                                               mutation_scale=self._arrow_scale3d,
+                                               arrowstyle=self._arrow_style3d,
+                                               linestyle=self._nadir_line_style,
+                                               lw=self._arrow_weight3d)
+        # angle to nadir arc
+        self._arc3d, = self._ax3d.plot(0, 0, 0,
+                                       lw=self._arrow_weight3d * 0.75,
+                                       linestyle=self._nadir_line_style,
+                                       color=self._angle_to_nadir_color)
+        # angle to nadir text
+        self._nadir_angle_text = self._ax3d.text2D(0.95, 0.95,
+                                                   "{:.1f}°".format(0), transform=self._ax3d.transAxes,
+                                                   color=self._angle_to_nadir_color, horizontalalignment='right')
+
+        # camera frustum
+        self._camera_frustum_arrow3d = []
+        self._camera_frustum_plot = []
+        for i in range(4):
+            # oriented sides
+            self._camera_frustum_arrow3d.append(self._ax3d.arrow3D(0, 0, 0, 0, 0, 0,
+                                                                   color=self._camera_frustum_color,
+                                                                   mutation_scale=self._arrow_scale3d,
+                                                                   arrowstyle="-",
+                                                                   linestyle=self._camera_frustum_linestyle,
+                                                                   lw=self._arrow_weight3d * self._camera_frustum_scale))
+            # flat sides
+            if i > 0:
+                p, = self._ax3d.plot([0, 0], [0, 0], [0, 0],
+                                     color=self._camera_frustum_color,
+                                     linestyle=self._camera_frustum_linestyle,
+                                     lw=self._arrow_weight3d * self._camera_frustum_scale)
+                self._camera_frustum_plot.append(p)
+            if i == 3:
+                p, = self._ax3d.plot([0, 0], [0, 0], [0, 0],
+                                     color=self._camera_frustum_color,
+                                     linestyle=self._camera_frustum_linestyle,
+                                     lw=self._arrow_weight3d * self._camera_frustum_scale)
+                self._camera_frustum_plot.append(p)
 
     def _init_map_view(self):
         """
@@ -83,10 +150,10 @@ class AttitudeVisualizer:
         self._ax_flat_map_zoom = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
         self._ax_flat_map_zoom.coastlines(resolution='50m')
         self._nadir_coverage = self._ax_flat_map_zoom.tissot(rad_km=50,
-                                                        lats=0, lons=0, n_samples=15,
-                                                        facecolor=self._nadir_vector_color,
-                                                        edgecolor=self._nadir_vector_color,
-                                                        linewidth=0.15, alpha=0.75)
+                                                             lats=0, lons=0, n_samples=15,
+                                                             facecolor=self._nadir_vector_color,
+                                                             edgecolor=self._nadir_vector_color,
+                                                             linewidth=0.15, alpha=0.75)
         self._camera_coverage = None
 
     def _draw_3d_eci_frame(self):
@@ -131,8 +198,8 @@ class AttitudeVisualizer:
         self._draw_3d_nadir(sat_state)
 
         # draw square for satellite
-        self._ax3d.plot(sat_state.position.x, sat_state.position.y, sat_state.position.z, marker="s", markersize=4,
-                        color="grey")
+        self._sc_body_3d.set_data(np.array([sat_state.position.x]), np.array([sat_state.position.y]))
+        self._sc_body_3d.set_3d_properties(np.array([sat_state.position.z]))
 
     def _draw_3d_sc_body(self, sat_state):
         """ Draws the spacecraft body frame (x, y, -z).
@@ -147,12 +214,8 @@ class AttitudeVisualizer:
 
         # draw S/C body frame
         for axis in range(3):
-            self._ax3d.arrow3D(x, y, z, self._sc_body_eci[axis][0],
-                               self._sc_body_eci[axis][1], self._sc_body_eci[axis][2],
-                               color=self._sc_frame_colors[axis],
-                               mutation_scale=self._arrow_scale3d,
-                               arrowstyle=self._arrow_style3d,
-                               lw=self._arrow_weight3d)
+            self._sc_body_arrow3d[axis].set_data(x, y, z, self._sc_body_eci[axis][0],
+                                                 self._sc_body_eci[axis][1], self._sc_body_eci[axis][2])
 
     def _draw_3d_camera_frustum(self, sat_state, body_to_eci_ro, sc_body):
         """ Draws the satellite's camera frustum.
@@ -182,27 +245,18 @@ class AttitudeVisualizer:
 
         for i, vector in enumerate(frustum_vectors):
             # oriented sides
-            self._ax3d.arrow3D(x, y, z, vector[0],
-                               vector[1], vector[2], color=self._camera_frustum_color,
-                               mutation_scale=self._arrow_scale3d,
-                               arrowstyle="-",
-                               linestyle=self._camera_frustum_linestyle,
-                               lw=self._arrow_weight3d * self._camera_frustum_scale)
+            self._camera_frustum_arrow3d[i].set_data(x, y, z, vector[0], vector[1], vector[2])
+
             # flat sides
             if i > 0:
-                self._ax3d.plot([frustum_vectors[i - 1][0] + x, vector[0] + x],
-                                [frustum_vectors[i - 1][1] + y, vector[1] + y],
-                                [frustum_vectors[i - 1][2] + z, vector[2] + z],
-                                color=self._camera_frustum_color,
-                                linestyle=self._camera_frustum_linestyle,
-                                lw=self._arrow_weight3d * self._camera_frustum_scale)
+                self._camera_frustum_plot[i-1].set_data(np.array([frustum_vectors[i - 1][0] + x, vector[0] + x]),
+                                                      np.array([frustum_vectors[i - 1][1] + y, vector[1] + y]))
+                self._camera_frustum_plot[i-1].set_3d_properties(np.array([frustum_vectors[i - 1][2] + z, vector[2] + z]))
+
             if i == 3:
-                self._ax3d.plot([frustum_vectors[0][0] + x, vector[0] + x],
-                                [frustum_vectors[0][1] + y, vector[1] + y],
-                                [frustum_vectors[0][2] + z, vector[2] + z],
-                                color=self._camera_frustum_color,
-                                linestyle=self._camera_frustum_linestyle,
-                                lw=self._arrow_weight3d * self._camera_frustum_scale)
+                self._camera_frustum_plot[i].set_data(np.array([frustum_vectors[0][0] + x, vector[0] + x]),
+                                                      np.array([frustum_vectors[0][1] + y, vector[1] + y]))
+                self._camera_frustum_plot[i].set_3d_properties(np.array([frustum_vectors[0][2] + z, vector[2] + z]))
 
     def _draw_3d_nadir(self, sat_state):
         """ Draws the nadir vector along with an arc indicating the angle between the nadir vector and
@@ -219,12 +273,7 @@ class AttitudeVisualizer:
         # draw nadir vector
         nadir = np.array(sat_state.nadir)
         nadir *= self._arrow_length3d
-        self._ax3d.arrow3D(x, y, z, nadir[0], nadir[1], nadir[2],
-                           color=self._nadir_vector_color,
-                           mutation_scale=self._arrow_scale3d,
-                           arrowstyle=self._arrow_style3d,
-                           linestyle=self._nadir_line_style,
-                           lw=self._arrow_weight3d)
+        self._nadir_arrow.set_data(x, y, z, nadir[0], nadir[1], nadir[2])
 
         # draw arc to show angle between nadir and -z of S/C body frame
         arc_scale = 0.65
@@ -233,15 +282,12 @@ class AttitudeVisualizer:
                                                 nadir * arc_scale, self._sc_body_eci[2] * arc_scale,
                                                 radians(angle),
                                                 10)
-        self._ax3d.plot(arc_points[:, 0], arc_points[:, 1], arc_points[:, 2], lw=self._arrow_weight3d * 0.75,
-                        linestyle=self._nadir_line_style,
-                        color=self._angle_to_nadir_color)
+        self._arc3d.set_data(arc_points[:, 0], arc_points[:, 1])
+        self._arc3d.set_3d_properties(arc_points[:, 2])
 
         # add text to show angle value
         arc_middle = arc_points[len(arc_points) // 2]
-        self._ax3d.text(arc_middle[0], arc_middle[1], arc_middle[2],
-                        "{:.1f}°".format(angle),
-                        color=self._angle_to_nadir_color, horizontalalignment='center')
+        self._nadir_angle_text.set_text("{:.1f}°".format(angle))
 
     def _update_3d_view(self, sat_state):
         """ Updates the 3D view of the visualizer with the given satellite data.
@@ -251,22 +297,9 @@ class AttitudeVisualizer:
         sat_state : SatState
             The satellite data to use
         """
-        self._ax3d.clear()
-
-        # set axis label
-        self._ax3d.set_xlabel("X (km)")
-        self._ax3d.set_ylabel("Y (km)")
-        self._ax3d.set_zlabel("Z (km)")
-
-        # set size of plot
-        self._ax3d.set_xlim(self._lims3d)
-        self._ax3d.set_ylim(self._lims3d)
-        self._ax3d.set_zlim(self._lims3d)
-
-        self._draw_3d_eci_frame()
         self._draw_3d_spacecraft(sat_state)
 
-        self._ax3d.set_title("Satellite attitude at {}".format(sat_state.timestamp))
+        self._ax3d.set_title("Attitude at {}".format(sat_state.timestamp))
 
     def _update_flat_map_view(self, sat_state, nadir_ll, minus_z_ll):
         """ Updates the flat map view of the visualizer with the given satellite data.
@@ -281,6 +314,7 @@ class AttitudeVisualizer:
             latitude and longitude at which the satellite body minus_z axis points
         """
 
+        # adjust map location
         margin = self._zoom_margin
         map_center = nadir_ll
         if minus_z_ll is not None:
@@ -304,20 +338,20 @@ class AttitudeVisualizer:
         # plot nadir coverage
         self._nadir_coverage.remove()
         self._nadir_coverage = self._ax_flat_map_zoom.tissot(rad_km=camera_coverage_radius,
-                                                        lats=nadir_ll[0], lons=nadir_ll[1], n_samples=15,
-                                                        facecolor=self._nadir_vector_color,
-                                                        edgecolor=self._nadir_vector_color,
-                                                        linewidth=0.15, alpha=0.75)
+                                                             lats=nadir_ll[0], lons=nadir_ll[1], n_samples=15,
+                                                             facecolor=self._nadir_vector_color,
+                                                             edgecolor=self._nadir_vector_color,
+                                                             linewidth=0.15, alpha=0.75)
         # plot camera coverage
         if self._camera_coverage is not None:
             self._camera_coverage.remove()
 
         if minus_z_ll is not None:
             self._camera_coverage = self._ax_flat_map_zoom.tissot(rad_km=camera_coverage_radius,
-                                                             lats=minus_z_ll[0], lons=minus_z_ll[1], n_samples=15,
-                                                             facecolor=self._camera_frustum_color,
-                                                             edgecolor=self._camera_frustum_color,
-                                                             linewidth=0.15, alpha=0.75)
+                                                                  lats=minus_z_ll[0], lons=minus_z_ll[1], n_samples=15,
+                                                                  facecolor=self._camera_frustum_color,
+                                                                  edgecolor=self._camera_frustum_color,
+                                                                  linewidth=0.15, alpha=0.75)
         else:
             self._camera_coverage = None
 
@@ -375,17 +409,11 @@ class AttitudeVisualizer:
         """
 
         def on_new_frame(frame_number):
-            start = time.time()
-
             sat_state = next(sat_state_generator)
             if sat_state is not None:
                 self._update(sat_state)
 
-            end = time.time()
-            frame_time = end - start
-            print(frame_time)
-
-        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval)
+        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval, cache_frame_data=False)
         self._add_legend()
         plt.show()
 
@@ -422,8 +450,8 @@ class AttitudeVisualizer:
         """
         # flat map view
         nadir_target_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
-                                              marker=self._nadir_target_marker_style, linestyle='None',
-                                              markersize=8, label='Expected nadir pointing')
+                                            marker=self._nadir_target_marker_style, linestyle='None',
+                                            markersize=8, label='Expected nadir pointing')
         camera_pointing_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
                                                marker=self._camera_pointing_marker_style, linestyle='None',
                                                markersize=8, label='Acutal camera pointing')

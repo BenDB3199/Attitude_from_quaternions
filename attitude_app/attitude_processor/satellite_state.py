@@ -178,7 +178,7 @@ def compute_sat_state(timestamp, quat, TLE):
         return SatState(sat_pos, lla, quat, (roll, pitch, yaw), nadir, angle_to_nadir, timestamp)
 
 
-def create_sat_state_generator(timestamped_quats, tle):
+def create_sat_state_generator(timestamped_quats, tle, step=1):
     """ Creates a simple satellite state generator using the prodived TLE and timestamped quaternions.
 
     Parameters
@@ -187,6 +187,9 @@ def create_sat_state_generator(timestamped_quats, tle):
         the list of timestamped quaternions
     tle : TLE
         the TLE
+    step: int
+        a step of 1 means we return every quaternions, 2 means we return 1 quaternions every 2 quaternions and so on.
+        Default value is 1.
     """
-    for timestamp, quat in timestamped_quats:
-        yield compute_sat_state(timestamp, quat, tle)
+    for i in range(0, len(timestamped_quats), step):
+        yield compute_sat_state(timestamped_quats[i][0], timestamped_quats[i][1], tle)
