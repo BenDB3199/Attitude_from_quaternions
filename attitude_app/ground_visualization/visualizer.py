@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from math import radians, tan
 from datetime import datetime
+from math import radians, tan
 
 import cartopy.crs as ccrs
 import matplotlib.animation as animation
@@ -20,7 +20,7 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 
 class AttitudeVisualizer:
     def __init__(self):
-        self._fig = plt.figure(figsize=(14,7))
+        self._fig = plt.figure(figsize=(14, 7))
         self._fig.canvas.set_window_title("OPS-SAT attitude visualizer")
 
         self._init_3d_view()
@@ -250,9 +250,10 @@ class AttitudeVisualizer:
 
             # flat sides
             if i > 0:
-                self._camera_frustum_plot[i-1].set_data(np.array([frustum_vectors[i - 1][0] + x, vector[0] + x]),
-                                                      np.array([frustum_vectors[i - 1][1] + y, vector[1] + y]))
-                self._camera_frustum_plot[i-1].set_3d_properties(np.array([frustum_vectors[i - 1][2] + z, vector[2] + z]))
+                self._camera_frustum_plot[i - 1].set_data(np.array([frustum_vectors[i - 1][0] + x, vector[0] + x]),
+                                                          np.array([frustum_vectors[i - 1][1] + y, vector[1] + y]))
+                self._camera_frustum_plot[i - 1].set_3d_properties(
+                    np.array([frustum_vectors[i - 1][2] + z, vector[2] + z]))
 
             if i == 3:
                 self._camera_frustum_plot[i].set_data(np.array([frustum_vectors[0][0] + x, vector[0] + x]),
@@ -414,22 +415,24 @@ class AttitudeVisualizer:
         interval : int
             interval between frames in milliseconds
         save : bool
-            If true, saves the animatio in an mp4 file
+            If true, saves the animation in an mp4 file
         """
         self._add_legend()
 
         # catch keyboard key press event
         def key_press_event(event):
             if event.key == 'p':
-               self._pause_animation()
+                self._pause_animation()
 
         self._fig.canvas.mpl_connect('key_press_event', key_press_event)
 
         # define frame function
         def on_new_frame(frame_number):
-            sat_state = next(sat_state_generator)
+            sat_state = next(sat_state_generator, None)
             if sat_state is not None:
                 self._update(sat_state)
+            else:
+                exit(0)
 
         self._is_animation_running = True
         self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval, cache_frame_data=False)
@@ -438,10 +441,11 @@ class AttitudeVisualizer:
         if save:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             video_file_name = 'attitude-{}.mp4'.format(timestamp)
+
+            print("Exporting {}".format(video_file_name))
             try:
                 Writer = animation.writers['ffmpeg']
-                writer = Writer(fps=int(1000/interval), metadata=dict(artist='Me'), bitrate=1800)
-
+                writer = Writer(fps=int(1000 / interval), metadata=dict(artist='Me'), bitrate=1800)
                 self._animation.save(video_file_name, writer=writer)
             except Exception as e:
                 print(e)

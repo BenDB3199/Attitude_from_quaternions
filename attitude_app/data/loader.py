@@ -1,42 +1,46 @@
-import configparser
 from datetime import datetime
 
 from attitude_processor.satellite_state import TLE
 
 
-def load_tle_and_quat(config_file, nb_lines=1):
-    """ Loads TLE and the requested number of timestamped quaternions using paths provided in the given configuration file.
+def load_tle_and_quat(tle_file_path, quat_file_path, start_line=1, end_line=1):
+    """ Loads TLE and the timestamped quaternions from the requested lines of the quaternions file.
 
     Parameters
     ----------
-    config_file : string
-        path to the configuration file to use
-    nb_lines : int
-        the number of lines to read in the quaternion file. Default value is 1. Set it to -1 to read all lines.
+    tle_file_path : string
+        path to the TLE file to load
+    quat_file_path : string
+        path to the timestamped quaternions file to load
+    start_line: int
+        first line to read in timestamped quaternions file
+    end_line: int
+        last line to read in timestamped quaternions file
+
     Returns
     -------
     list(tuple(datetime, tuple(float)), TLE
     """
-    config = configparser.ConfigParser()
-    config.read(config_file)
-
     # load quaternion file
-    timestamped_quats = load_quaternions(config['conf']['quat_path'], nb_lines=nb_lines)
+    timestamped_quats = load_quaternions(quat_file_path, start_line=start_line, end_line=end_line)
 
     # load TLE file
-    tle = load_tle(config['conf']['tle_path'])
+    tle = load_tle(tle_file_path)
 
     return timestamped_quats, tle
 
-def load_quaternions(quat_file_path, nb_lines=1):
-    """ Loads the requested number of timestamped quaternions from a text file.
+
+def load_quaternions(quat_file_path, start_line=1, end_line=1):
+    """ Loads the timestamped quaternions from the requested lines of the provided file.
 
     Parameters
     ----------
     quat_file_path : string
         path to the timestamped quaternions file to load
-    nb_lines : int
-        the number of lines to read in the file. Default value is 1. Set it to -1 to read all lines.
+    start_line: int
+        first line to read in the file
+    end_line: int
+        last line to read in the file
 
     Returns
     -------
@@ -45,17 +49,22 @@ def load_quaternions(quat_file_path, nb_lines=1):
     timestamped_quats = []
 
     with open(quat_file_path, 'r') as quat_file:
-        quat_line = quat_file.readline()
-        lines_read = 0
+        # skip first lines
+        for _ in range(start_line - 1):
+            next(quat_file)
 
-        # read lines till end of file or line count reached
-        while quat_line and (lines_read < nb_lines or nb_lines==-1):
+        quat_line = quat_file.readline()
+        line_number = start_line
+
+        # read lines till end of file or end_line
+        while quat_line and (line_number <= end_line or end_line == -1):
             timestamp, quat = parse_quat_line(quat_line)
             timestamped_quats.append((timestamp, quat))
-            lines_read += 1
+            line_number += 1
             quat_line = quat_file.readline()
 
     return timestamped_quats
+
 
 def parse_quat_line(quat_line):
     """ Parses a timestamped quaternion line.
