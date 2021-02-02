@@ -9,7 +9,7 @@ from data.loader import load_tle_and_quat
 _DIR_NAME = os.path.dirname(__file__)
 
 # Name of the configuration file
-_CONFIG_FILE = 'config.ini'
+_CONFIG_FILE = 'configuration/config.ini'
 # Absolute path of the configuration file
 _CONFIG_FILE_PATH = os.path.join(_DIR_NAME, _CONFIG_FILE)
 

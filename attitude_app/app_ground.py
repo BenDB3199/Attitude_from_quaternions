@@ -9,7 +9,7 @@ from ground_visualization import visualizer
 _DIR_NAME = os.path.dirname(__file__)
 
 # Name of the configuration file
-_CONFIG_FILE = 'config_ground.ini'
+_CONFIG_FILE = 'configuration/config_ground.ini'
 # Absolute path of the configuration file
 _CONFIG_FILE_PATH = os.path.join(_DIR_NAME, _CONFIG_FILE)
 
