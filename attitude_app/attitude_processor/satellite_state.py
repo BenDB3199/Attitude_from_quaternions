@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from math import acos, asin, pi, atan, cos, sin, degrees
 
 import ephem

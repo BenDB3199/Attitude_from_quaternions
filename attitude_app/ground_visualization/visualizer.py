@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from datetime import datetime
 from math import radians, tan
 
@@ -385,7 +383,7 @@ class AttitudeVisualizer:
         self._update_flat_map_view(sat_state, nadir_ll, minus_z_ll)
 
     def _update(self, sat_state):
-        """ Updates the all the views of the visualizer with the given satellite data.
+        """ Updates all the views of the visualizer with the given satellite data.
 
         Parameters
         ----------
@@ -395,18 +393,30 @@ class AttitudeVisualizer:
         self._update_3d_view(sat_state)
         self._update_map_views(sat_state)
 
-    def show(self, sat_state):
+    def update(self, sat_state):
+        """ Updates all the views of the visualizer with the given satellite data and re-draws them.
+
+        Parameters
+        ----------
+        sat_state : SatState
+            The satellite data to use
         """
-        Visualize the provided satellite state.
-        """
+
         self._update(sat_state)
+        plt.draw()
+
+    def show(self):
+        """
+        Visualize the current satellite state provided either by update() or animate().
+        """
         self._add_legend()
 
         # show
         plt.show()
 
     def animate(self, sat_state_generator, interval=50, save=False):
-        """ Visualize multiple satellite state. The visualizer updates itself with new satellite state provided by a satellite state generator.
+        """ Visualize multiple satellite states frame by frame. The visualizer updates itself with new satellite state
+        provided by the satellite state generator, there is no need to call the update() method.
 
         Parameters
         ----------
@@ -415,10 +425,8 @@ class AttitudeVisualizer:
         interval : int
             interval between frames in milliseconds
         save : bool
-            If true, saves the animation in an mp4 file
+            If true, saves the frames in an mp4 file instead of showing them
         """
-        self._add_legend()
-
         # catch keyboard key press event
         def key_press_event(event):
             if event.key == 'p':
@@ -449,8 +457,6 @@ class AttitudeVisualizer:
                 self._animation.save(video_file_name, writer=writer)
             except Exception as e:
                 print(e)
-        else:
-            plt.show()
 
     def _pause_animation(self):
         """
