@@ -2,6 +2,7 @@ from datetime import datetime
 from math import radians, tan
 
 import cartopy.crs as ccrs
+import ephem
 import matplotlib.animation as animation
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
@@ -38,6 +39,9 @@ class AttitudeVisualizer:
         self._arrow_style3d = "->"
         self._arrow_scale3d = 15
         self._arrow_weight3d = 1.5
+        self._earth_color = "dodgerblue"
+        self._earth_center_marker = "o"
+        self._earth_surface_weight3d = 0.5
         self._eci_frame_colors = ["red", "green", "blue"]
         self._sc_frame_colors = ["lightcoral", "yellowgreen", "skyblue"]
         self._nadir_vector_color = "hotpink"
@@ -55,8 +59,9 @@ class AttitudeVisualizer:
         self._ax3d.set_zlabel("Z (km)")
 
         # set size of plot
-        self._ax3d.set_xlim(self._lims3d)
-        self._ax3d.set_ylim(self._lims3d)
+        x_y_scale = 1.25
+        self._ax3d.set_xlim([self._lims3d[0] * x_y_scale, self._lims3d[1] * x_y_scale])
+        self._ax3d.set_ylim([self._lims3d[0] * x_y_scale, self._lims3d[1] * x_y_scale])
         self._ax3d.set_zlim(self._lims3d)
 
         self._draw_3d_eci_frame()
@@ -131,7 +136,7 @@ class AttitudeVisualizer:
         self._flat_map_proj = ccrs.PlateCarree()
         self._ax_flat_map = self._fig.add_subplot(2, 2, 2, projection=self._flat_map_proj)
         self._ax_flat_map.set_global()
-        self._ax_flat_map.coastlines(resolution='110m')
+        self._ax_flat_map.coastlines(resolution='50m')
         self._ax_flat_map.gridlines(draw_labels=self._map_grid_labels_enabled, linewidth=self._map_grid_lines_width,
                                     color=self._map_grid_lines_color, alpha=0.3, linestyle=self._map_grid_lines_style)
         self._nadir_target, = self._ax_flat_map.plot(0, 0, markersize=20,
@@ -144,10 +149,10 @@ class AttitudeVisualizer:
         # zoomed flat map view
         self._nadir_coverage_marker_style = "o"
         self._camera_coverage_marker_style = "o"
-        self._zoom_margin = 5
+        self._zoom_margin = 7  # in coordinates degrees
 
         self._ax_flat_map_zoom = self._fig.add_subplot(2, 2, 4, projection=self._flat_map_proj)
-        self._ax_flat_map_zoom.coastlines(resolution='50m')
+        self._ax_flat_map_zoom.coastlines(resolution='10m')
         self._nadir_coverage = self._ax_flat_map_zoom.tissot(rad_km=50,
                                                              lats=0, lons=0, n_samples=15,
                                                              facecolor=self._nadir_vector_color,
@@ -174,8 +179,17 @@ class AttitudeVisualizer:
                            arrowstyle=self._arrow_style3d,
                            lw=self._arrow_weight3d)
 
-        # draw point for earth
-        self._ax3d.plot(x_earth, y_earth, z_earth, marker="o", markersize=10, color="dodgerblue")
+        # draw earth center
+        self._ax3d.plot(x_earth, y_earth, z_earth,
+                        marker=self._earth_center_marker, markersize=5, color=self._earth_color)
+
+        # draw earth sphere
+        radius = ephem.earth_radius / 1000
+        u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
+        x = radius * np.cos(u) * np.sin(v)
+        y = radius * np.sin(u) * np.sin(v)
+        z = radius * np.cos(v)
+        self._ax3d.plot_wireframe(x, y, z, color=self._earth_color, lw=self._earth_surface_weight3d, alpha=0.25)
 
     def _draw_3d_spacecraft(self, sat_state):
         """ Draws all the features related to the spacecraft: body frame (x,y,-z), nadir vector, camera frustum.
@@ -314,7 +328,7 @@ class AttitudeVisualizer:
             latitude and longitude at which the satellite body minus_z axis points
         """
 
-        # adjust map location
+        # adjust flat map zoom location
         margin = self._zoom_margin
         map_center = nadir_ll
         if minus_z_ll is not None:
@@ -427,6 +441,7 @@ class AttitudeVisualizer:
         save : bool
             If true, saves the frames in an mp4 file instead of showing them
         """
+
         # catch keyboard key press event
         def key_press_event(event):
             if event.key == 'p':
@@ -438,7 +453,11 @@ class AttitudeVisualizer:
         def on_new_frame(frame_number):
             sat_state = next(sat_state_generator, None)
             if sat_state is not None:
-                self._update(sat_state)
+                # force draw on first frame (doesn't draw otherwise, not sure why)
+                if frame_number == 0:
+                    self.update(sat_state)
+                else:
+                    self._update(sat_state)
             else:
                 exit(0)
 
@@ -473,18 +492,22 @@ class AttitudeVisualizer:
         """
         Adds the legend for the 3D view of the visualizer.
         """
+        earth_center_legend = mlines.Line2D([], [], color=self._earth_color, marker=self._earth_center_marker,
+                                            linestyle='None', label='Earth center')
+        earth_surface_legend = mlines.Line2D([], [], color=self._earth_color,
+                                             linewidth=self._earth_surface_weight3d, label='Earth surface')
         x_eci_legend = mlines.Line2D([], [], color=self._eci_frame_colors[0],
-                                     markersize=15, label='ECI x')
+                                     markersize=15, label='ECI X')
         y_eci_legend = mlines.Line2D([], [], color=self._eci_frame_colors[1],
-                                     markersize=15, label='ECI y')
+                                     markersize=15, label='ECI Y')
         z_eci_legend = mlines.Line2D([], [], color=self._eci_frame_colors[2],
-                                     markersize=15, label='ECI z')
+                                     markersize=15, label='ECI Z')
         x_sc_legend = mlines.Line2D([], [], color=self._sc_frame_colors[0],
-                                    markersize=15, label='SC x')
+                                    markersize=15, label='SC body X')
         y_sc_legend = mlines.Line2D([], [], color=self._sc_frame_colors[1],
-                                    markersize=15, label='SC y')
+                                    markersize=15, label='SC body Y')
         z_sc_legend = mlines.Line2D([], [], color=self._sc_frame_colors[2],
-                                    markersize=15, label='SC -z')
+                                    markersize=15, label='SC body -Z')
         camera_frustum_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
                                               markersize=15, label='Camera frustum',
                                               linestyle=self._camera_frustum_linestyle)
@@ -493,7 +516,8 @@ class AttitudeVisualizer:
         angle_to_nadir_legend = mlines.Line2D([], [], color=self._angle_to_nadir_color,
                                               markersize=15, label='Angle to nadir', linestyle=self._nadir_line_style)
         self._fig.legend(
-            handles=[x_eci_legend, y_eci_legend, z_eci_legend, x_sc_legend, y_sc_legend, z_sc_legend,
+            handles=[earth_center_legend, earth_surface_legend, x_eci_legend, y_eci_legend, z_eci_legend, x_sc_legend,
+                     y_sc_legend, z_sc_legend,
                      camera_frustum_legend, nadir_legend, angle_to_nadir_legend], loc="upper left")
 
     def _add_map_views_legend(self):
@@ -503,20 +527,20 @@ class AttitudeVisualizer:
         # flat map view
         nadir_target_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
                                             marker=self._nadir_target_marker_style, linestyle='None',
-                                            markersize=8, label='Expected nadir pointing')
+                                            markersize=8, label='Nadir pointing')
         camera_pointing_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
                                                marker=self._camera_pointing_marker_style, linestyle='None',
-                                               markersize=8, label='Actual camera pointing')
+                                               markersize=8, label='Camera pointing')
 
         self._fig.legend(handles=[nadir_target_legend, camera_pointing_legend], loc="upper right")
 
         # zoomed
         nadir_coverage_legend = mlines.Line2D([], [], color=self._nadir_vector_color,
                                               marker=self._nadir_coverage_marker_style, linestyle='None',
-                                              markersize=8, label='Expected nadir coverage')
+                                              markersize=8, label='Nadir coverage')
         camera_coverage_legend = mlines.Line2D([], [], color=self._camera_frustum_color,
                                                marker=self._camera_coverage_marker_style, linestyle='None',
-                                               markersize=8, label='Actual camera coverage')
+                                               markersize=8, label='Camera coverage')
         self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="lower right")
 
     def _add_legend(self):

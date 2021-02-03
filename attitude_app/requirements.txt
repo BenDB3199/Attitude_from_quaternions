@@ -1,9 +1,9 @@
 # common dependencies
 numpy==1.19.5
-
-# attitude_processor package dependencies
 DateTime==4.3
 ephem==3.7.7.1
+
+# attitude_processor package dependencies
 pyquaternion==0.9.9
 
 # ground_visualization package dependencies
