@@ -1,6 +1,5 @@
 from math import sin
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d.axes3d import Axes3D
@@ -49,6 +48,7 @@ class Arrow3D(FancyArrowPatch):
     def set_data(self, x, y, z, dx, dy, dz):
         self._xyz = (x, y, z)
         self._dxdydz = (dx, dy, dz)
+
 
 def _arrow3D(ax, x, y, z, dx, dy, dz, *args, **kwargs):
     """ Add an Arrow3D artist to an Axes3D instance.
