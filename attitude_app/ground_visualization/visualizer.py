@@ -34,7 +34,7 @@ class AttitudeVisualizer:
         self._sc_body_eci = None  # set by _draw_3d_spacecraft()
 
         # drawings properties
-        self._lims3d = [-6000, 6000]
+        self._lims3d = [-6500, 6500]
         self._arrow_length3d = 4000
         self._arrow_style3d = "->"
         self._arrow_scale3d = 15
@@ -59,7 +59,7 @@ class AttitudeVisualizer:
         self._ax3d.set_zlabel("Z (km)")
 
         # set size of plot
-        x_y_scale = 1.25
+        x_y_scale = 0.9
         self._ax3d.set_xlim([self._lims3d[0] * x_y_scale, self._lims3d[1] * x_y_scale])
         self._ax3d.set_ylim([self._lims3d[0] * x_y_scale, self._lims3d[1] * x_y_scale])
         self._ax3d.set_zlim(self._lims3d)
@@ -67,7 +67,8 @@ class AttitudeVisualizer:
         self._draw_3d_eci_frame()
 
         # s/c body
-        self._sc_body_3d, = self._ax3d.plot(0, 0, 0, marker="s", markersize=4, color="grey")
+        zero = np.array([0])
+        self._sc_body_3d, = self._ax3d.plot(zero, zero, zero, marker="s", markersize=4, color="grey")
 
         # draw S/C body frame
         self._sc_body_arrow3d = []
@@ -86,7 +87,7 @@ class AttitudeVisualizer:
                                                linestyle=self._nadir_line_style,
                                                lw=self._arrow_weight3d)
         # angle to nadir arc
-        self._arc3d, = self._ax3d.plot(0, 0, 0,
+        self._arc3d, = self._ax3d.plot(zero, zero, zero,
                                        lw=self._arrow_weight3d * 0.75,
                                        linestyle=self._nadir_line_style,
                                        color=self._angle_to_nadir_color)
@@ -180,7 +181,7 @@ class AttitudeVisualizer:
                            lw=self._arrow_weight3d)
 
         # draw earth center
-        self._ax3d.plot(x_earth, y_earth, z_earth,
+        self._ax3d.plot(np.array([x_earth]), np.array([y_earth]), np.array([z_earth]),
                         marker=self._earth_center_marker, markersize=5, color=self._earth_color)
 
         # draw earth sphere
@@ -462,7 +463,7 @@ class AttitudeVisualizer:
                 exit(0)
 
         self._is_animation_running = True
-        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval, cache_frame_data=False)
+        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval)
 
         # setup saving is requested
         if save:
