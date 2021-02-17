@@ -25,6 +25,7 @@ class AttitudeVisualizer:
 
         self._init_3d_view()
         self._init_map_view()
+        self._init_modes_legend()
 
         self._camera_fov = 14.8  # camera fov in degrees (camera has square resolution so h_fov = v_fov)
 
@@ -162,6 +163,30 @@ class AttitudeVisualizer:
                                                              linewidth=0.15, alpha=0.75)
         self._camera_coverage = None
 
+    def _init_modes_legend(self):
+        """
+        Initializes data related to the modes (LIVE/PLAYBACK) legend.
+        """
+        # run modes data
+        self._live_mode_color = "chartreuse"
+        self._live_mode_marker_style = ">"
+        self._live_mode_label = "LIVE"
+
+        self._playback_mode_color = "gold"
+        self._playback_mode_marker_style = "<"
+        self._playback_mode_label = "PLAYBACK"
+
+        self._paused_color = "red"
+        self._paused_marker_style = "s"
+        self._paused_label = "PAUSED"
+
+        # default mode is LIVE
+        self._current_mode_color = self._live_mode_color
+        self._current_mode_marker_style = self._live_mode_marker_style
+        self._current_mode_label = self._live_mode_label
+
+        self._mode_legend_handle = None
+
     def _draw_3d_eci_frame(self):
         """
         Draws the ECI coordinates frame in the 3D view.
@@ -292,7 +317,7 @@ class AttitudeVisualizer:
         nadir = np.array(sat_state.nadir)
         eci_z = self._sc_body_eci[2] / norm(self._sc_body_eci[2])
         nadir_angle = degrees(acos(dot(eci_z, nadir)))
-        #print(sat_state.angle_to_nadir)
+        # print(sat_state.angle_to_nadir)
 
         # draw nadir vector
         nadir *= self._arrow_length3d
@@ -449,6 +474,10 @@ class AttitudeVisualizer:
             If true, saves the frames in an mp4 file instead of showing them
         """
 
+        self._update_modes_legend(self._playback_mode_color,
+                                  self._playback_mode_marker_style,
+                                  self._playback_mode_label)
+
         # catch keyboard key press event
         def key_press_event(event):
             if event.key == 'p':
@@ -489,9 +518,13 @@ class AttitudeVisualizer:
         Pauses or start the visualizer animation.
         """
         if self._is_animation_running:
+            self._update_modes_legend(self._paused_color, self._paused_marker_style, self._paused_label)
             self._animation.event_source.stop()
             self._is_animation_running = False
         else:
+            self._update_modes_legend(self._playback_mode_color,
+                                      self._playback_mode_marker_style,
+                                      self._playback_mode_label)
             self._animation.event_source.start()
             self._is_animation_running = True
 
@@ -550,9 +583,34 @@ class AttitudeVisualizer:
                                                markersize=8, label='Camera coverage')
         self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="lower right")
 
+    def _add_modes_legend(self):
+        """
+        Add legend for the run modes (LIVE/PLAYBACK).
+        """
+        if self._mode_legend_handle is not None:
+            self._mode_legend_handle.remove()
+
+        self._mode_legend = mlines.Line2D([], [], color=self._current_mode_color,
+                                          marker=self._current_mode_marker_style, linestyle='None',
+                                          markersize=8, label=self._current_mode_label)
+
+        self._mode_legend_handle = self._fig.legend(handles=[self._mode_legend], loc="upper center")
+
     def _add_legend(self):
         """
         Adds the legend for all the views of the visualizer.
         """
         self._add_3d_view_legend()
         self._add_map_views_legend()
+        self._add_modes_legend()
+
+    def _update_modes_legend(self, color, marker_style, label):
+        """
+        Updates the modes legend.
+        """
+        self._current_mode_color = color
+        self._current_mode_marker_style = marker_style
+        self._current_mode_label = label
+
+        self._add_modes_legend()
+        plt.draw()
