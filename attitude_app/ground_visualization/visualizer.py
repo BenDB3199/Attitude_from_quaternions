@@ -8,6 +8,7 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import pymap3d as pm
+import sys
 from ground_visualization.plotters_utils import arc_points_between_vectors, los_to_earth
 from numpy import dot
 from numpy.linalg import norm
@@ -495,19 +496,16 @@ class AttitudeVisualizer:
         self._fig.canvas.mpl_connect('key_press_event', key_press_event)
 
         # define frame function
-        def on_new_frame(frame_number):
-            sat_state = next(sat_state_generator, None)
-            if sat_state is not None:
-                # force draw on first frame (doesn't draw otherwise, not sure why)
-                if frame_number == 0:
-                    self.update(sat_state)
-                else:
-                    self._update(sat_state)
-            else:
+        def on_new_frame(sat_state):
+            # if end of generator is reached, we exit
+            if sat_state is None:
                 exit(0)
 
+            self._update(sat_state)
+
         self._is_animation_running = True
-        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval)
+        self._animation = animation.FuncAnimation(self._fig, on_new_frame, sat_state_generator,
+                                                  save_count=sys.maxsize, interval=interval)
 
         # setup saving is requested
         if save:

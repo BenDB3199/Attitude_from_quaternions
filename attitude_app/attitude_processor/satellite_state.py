@@ -191,3 +191,5 @@ def create_sat_state_generator(timestamped_quats, tle, step=1):
     """
     for i in range(0, len(timestamped_quats), step):
         yield compute_sat_state(timestamped_quats[i][0], timestamped_quats[i][1], tle)
+
+    yield None
