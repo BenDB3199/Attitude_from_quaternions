@@ -2,7 +2,7 @@ import configparser
 import os
 import time
 
-from attitude_processor.satellite_state import compute_sat_state, create_sat_state_generator
+from attitude_processor.satellite_state import create_sat_state_generator
 from data.loader import load_tle_and_quat
 
 # Path of the folder containing this script
@@ -32,24 +32,7 @@ def _parse_config(config_file_path):
     return config
 
 
-def _start_single_quat_mode(tle_file_path, quat_file_path):
-    """ Starts the space attitude app in single quaternion mode: prints a single satellite attitude
-    computed using a TLE file and the first line of the quaternion file.
-
-     Parameters
-    ----------
-    tle_file_path : string
-        path to the TLE file to load
-    quat_file_path : string
-        path to the timestamped quaternion file to load
-    """
-    timestamped_quats, tle = load_tle_and_quat(tle_file_path, quat_file_path)
-    sat_state = compute_sat_state(timestamped_quats[0][0], timestamped_quats[0][1], tle)
-
-    print(sat_state.to_attitude_string())
-
-
-def _start_multiple_quat_mode(tle_file_path, quat_file_path, start_line, end_line, step, interval):
+def _start_playback_mode(tle_file_path, quat_file_path, start_line, end_line, step, interval):
     """ Starts space attitude app in multiple quaternions mode: successively prints the satellite
     attitudes computed using a TLE file and the requested lines of the quaternions file.
 
@@ -70,6 +53,15 @@ def _start_multiple_quat_mode(tle_file_path, quat_file_path, start_line, end_lin
     """
     timestamped_quats, tle = load_tle_and_quat(tle_file_path, quat_file_path, start_line=start_line, end_line=end_line)
     sat_state_generator = create_sat_state_generator(timestamped_quats, tle, step=step)
+
+    print("=============")
+    print("PLAYBACK MODE")
+    print("- TLE file: {}".format(tle_file_path))
+    print("- quaternions file: {}".format(quat_file_path))
+    print("\t - line step:\t{}".format(step))
+    print("\t - start line:\t{}".format(start_line))
+    print("\t - end line:\t{}".format(end_line))
+    print("=============")
 
     for sat_state in sat_state_generator:
         print("----")
@@ -93,16 +85,13 @@ def run(config_file_path):
     tle_file_path = config['global']['tle_path']
 
     # start depending on mode
-    if mode == 'SINGLE_QUAT':
-        quat_file_path = config[mode]['quat_path']
-        _start_single_quat_mode(tle_file_path, quat_file_path)
-    elif mode == 'MULTIPLE_QUAT':
+    if mode == 'PLAYBACK':
         quat_file_path = config[mode]['quat_path']
         step = int(config[mode]['step'])
         start_line = int(config[mode]['start_line'])
         end_line = int(config[mode]['end_line'])
         interval = int(config[mode]['interval'])
-        _start_multiple_quat_mode(tle_file_path, quat_file_path, start_line, end_line, step, interval)
+        _start_playback_mode(tle_file_path, quat_file_path, start_line, end_line, step, interval)
     else:
         print("Error: unknown mode {}".format(mode))
 
