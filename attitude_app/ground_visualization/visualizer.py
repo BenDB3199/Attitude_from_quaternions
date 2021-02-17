@@ -1,5 +1,5 @@
 from datetime import datetime
-from math import radians, tan
+from math import radians, tan, degrees, acos
 
 import cartopy.crs as ccrs
 import ephem
@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymap3d as pm
 from ground_visualization.plotters_utils import arc_points_between_vectors, los_to_earth
+from numpy import dot
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation as ro
 
@@ -201,19 +202,17 @@ class AttitudeVisualizer:
 	        The satellite data to use
         """
         # compute S/C body frame in ECI coordinates
-        sc_body = np.array([[self._arrow_length3d, 0, 0], [0, self._arrow_length3d, 0], [0, 0, -self._arrow_length3d]])
+        sc_body = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]]) * self._arrow_length3d
         q0, q1, q2, q3 = sat_state.quat_attitude
-        rotation = ro.from_quat([q1, q2, q3, q0])
-        sc_body_eci = rotation.apply(sc_body)  # # SciPy uses the convention ([vector], scalar).
+        eci_to_body_ro = ro.from_quat([q1, q2, q3, q0])  # SciPy uses the convention ([vector], scalar)
+        body_to_eci_ro = eci_to_body_ro.inv()
+        sc_body_eci = body_to_eci_ro.apply(sc_body)
+
         self._sc_body_eci = sc_body_eci
 
         self._draw_3d_sc_body(sat_state)
-        self._draw_3d_camera_frustum(sat_state, rotation, sc_body)
+        self._draw_3d_camera_frustum(sat_state, body_to_eci_ro, sc_body)
         self._draw_3d_nadir(sat_state)
-
-        # draw square for satellite
-        self._sc_body_3d.set_data(np.array([sat_state.position.x]), np.array([sat_state.position.y]))
-        self._sc_body_3d.set_3d_properties(np.array([sat_state.position.z]))
 
     def _draw_3d_sc_body(self, sat_state):
         """ Draws the spacecraft body frame (x, y, -z).
@@ -229,7 +228,12 @@ class AttitudeVisualizer:
         # draw S/C body frame
         for axis in range(3):
             self._sc_body_arrow3d[axis].set_data(x, y, z, self._sc_body_eci[axis][0],
-                                                 self._sc_body_eci[axis][1], self._sc_body_eci[axis][2])
+                                                 self._sc_body_eci[axis][1],
+                                                 self._sc_body_eci[axis][2])
+
+        # draw square for satellite
+        self._sc_body_3d.set_data(np.array([x]), np.array([y]))
+        self._sc_body_3d.set_3d_properties(np.array(z))
 
     def _draw_3d_camera_frustum(self, sat_state, body_to_eci_ro, sc_body):
         """ Draws the satellite's camera frustum.
@@ -285,24 +289,26 @@ class AttitudeVisualizer:
         # origin of drawings
         x, y, z = sat_state.position.x, sat_state.position.y, sat_state.position.z
 
-        # draw nadir vector
         nadir = np.array(sat_state.nadir)
+        eci_z = self._sc_body_eci[2] / norm(self._sc_body_eci[2])
+        nadir_angle = degrees(acos(dot(eci_z, nadir)))
+        #print(sat_state.angle_to_nadir)
+
+        # draw nadir vector
         nadir *= self._arrow_length3d
         self._nadir_arrow.set_data(x, y, z, nadir[0], nadir[1], nadir[2])
 
         # draw arc to show angle between nadir and -z of S/C body frame
         arc_scale = 0.65
-        angle = sat_state.angle_to_nadir
         arc_points = arc_points_between_vectors(x, y, z,
                                                 nadir * arc_scale, self._sc_body_eci[2] * arc_scale,
-                                                radians(angle),
+                                                radians(nadir_angle),
                                                 10)
         self._arc3d.set_data(arc_points[:, 0], arc_points[:, 1])
         self._arc3d.set_3d_properties(arc_points[:, 2])
 
-        # add text to show angle value
-        arc_middle = arc_points[len(arc_points) // 2]
-        self._nadir_angle_text.set_text("{:.1f}°".format(angle))
+        # add text to show nadir_angle value
+        self._nadir_angle_text.set_text("{:.1f}°".format(nadir_angle))
 
     def _update_3d_view(self, sat_state):
         """ Updates the 3D view of the visualizer with the given satellite data.
