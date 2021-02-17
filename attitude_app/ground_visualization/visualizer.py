@@ -19,7 +19,7 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 
 
 class AttitudeVisualizer:
-    def __init__(self):
+    def __init__(self, adcs="IADCS"):
         self._fig = plt.figure(figsize=(14, 7))
         self._fig.canvas.set_window_title("OPS-SAT attitude visualizer")
 
@@ -28,6 +28,8 @@ class AttitudeVisualizer:
         self._init_modes_legend()
 
         self._camera_fov = 14.8  # camera fov in degrees (camera has square resolution so h_fov = v_fov)
+        self._adcs = adcs
+        self._adcs_color = "magenta" if self._adcs == "CADCS" else "chocolate"
 
     def _init_3d_view(self):
         """
@@ -226,17 +228,24 @@ class AttitudeVisualizer:
 	    sat_state : SatState
 	        The satellite data to use
         """
-        # compute S/C body frame in ECI coordinates
-        sc_body = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]]) * self._arrow_length3d
+        # default mode is IADCS
         q0, q1, q2, q3 = sat_state.quat_attitude
         eci_to_body_ro = ro.from_quat([q1, q2, q3, q0])  # SciPy uses the convention ([vector], scalar)
-        body_to_eci_ro = eci_to_body_ro.inv()
-        sc_body_eci = body_to_eci_ro.apply(sc_body)
+        rotation = eci_to_body_ro
 
+        # if CADCS, inverse the rotation
+        if self._adcs == "CADCS":
+            body_to_eci_ro = eci_to_body_ro.inv()
+            rotation = body_to_eci_ro
+
+        # compute S/C body frame in ECI coordinates
+        sc_body = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]]) * self._arrow_length3d
+        sc_body_eci = rotation.apply(sc_body)
         self._sc_body_eci = sc_body_eci
 
+        # draw S/C related artefacts
         self._draw_3d_sc_body(sat_state)
-        self._draw_3d_camera_frustum(sat_state, body_to_eci_ro, sc_body)
+        self._draw_3d_camera_frustum(sat_state, rotation, sc_body)
         self._draw_3d_nadir(sat_state)
 
     def _draw_3d_sc_body(self, sat_state):
@@ -583,9 +592,18 @@ class AttitudeVisualizer:
                                                markersize=8, label='Camera coverage')
         self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="lower right")
 
+    def _add_adcs_legend(self):
+        """
+        Adds the legend showing from which ADCS the quaternion messages should come from.
+        """
+        adcs_legend = mlines.Line2D([], [], color=self._adcs_color,
+                                    marker='s', linestyle='None',
+                                    markersize=8, label=self._adcs + " MODE")
+        self._fig.legend(handles=[adcs_legend], loc="lower center")
+
     def _add_modes_legend(self):
         """
-        Add legend for the run modes (LIVE/PLAYBACK).
+        Adds legend for the run modes (LIVE/PLAYBACK).
         """
         if self._mode_legend_handle is not None:
             self._mode_legend_handle.remove()
@@ -602,6 +620,7 @@ class AttitudeVisualizer:
         """
         self._add_3d_view_legend()
         self._add_map_views_legend()
+        self._add_adcs_legend()
         self._add_modes_legend()
 
     def _update_modes_legend(self, color, marker_style, label):
