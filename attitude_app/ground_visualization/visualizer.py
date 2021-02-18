@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from math import radians, tan, degrees, acos
 
@@ -8,7 +9,6 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import pymap3d as pm
-import sys
 from ground_visualization.plotters_utils import arc_points_between_vectors, los_to_earth
 from numpy import dot
 from numpy.linalg import norm
@@ -470,7 +470,7 @@ class AttitudeVisualizer:
         # show
         plt.show()
 
-    def animate(self, sat_state_generator, interval=50, save=False):
+    def animate(self, sat_state_generator, interval=50):
         """ Visualize multiple satellite states frame by frame. The visualizer updates itself with new satellite state
         provided by the satellite state generator, there is no need to call the update() method.
 
@@ -480,10 +480,10 @@ class AttitudeVisualizer:
             generator returning the next satellite state to use for the next frame
         interval : int
             interval between frames in milliseconds
-        save : bool
-            If true, saves the frames in an mp4 file instead of showing them
         """
+        self._animation_interval = interval
 
+        # update legend to PLAYBACK mode
         self._update_modes_legend(self._playback_mode_color,
                                   self._playback_mode_marker_style,
                                   self._playback_mode_label)
@@ -495,30 +495,37 @@ class AttitudeVisualizer:
 
         self._fig.canvas.mpl_connect('key_press_event', key_press_event)
 
-        # define frame function
+        # define new frame function
         def on_new_frame(sat_state):
             # if end of generator is reached, we exit
             if sat_state is None:
                 exit(0)
-
+            # otherwise update frame with latest data
             self._update(sat_state)
 
         self._is_animation_running = True
         self._animation = animation.FuncAnimation(self._fig, on_new_frame, sat_state_generator,
-                                                  save_count=sys.maxsize, interval=interval)
+                                                  save_count=sys.maxsize, interval=self._animation_interval)
 
-        # setup saving is requested
-        if save:
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            video_file_name = 'attitude-{}.mp4'.format(timestamp)
+    def export_mp4(self):
+        """
+        Exports the animation frames in an mp4 file instead of showing them.
+        If this is called, calling show() won't do anything.
+        """
+        self._add_legend()
 
-            print("Exporting {}".format(video_file_name))
-            try:
-                Writer = animation.writers['ffmpeg']
-                writer = Writer(fps=int(1000 / interval), metadata=dict(artist='Me'), bitrate=1800)
-                self._animation.save(video_file_name, writer=writer)
-            except Exception as e:
-                print(e)
+        # prepare file name
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        video_file_name = 'attitude-{}.mp4'.format(timestamp)
+        print("Exporting {}".format(video_file_name))
+
+        # save the animation
+        try:
+            Writer = animation.writers['ffmpeg']
+            writer = Writer(fps=int(1000 / self._animation_interval), metadata=dict(artist='Me'), bitrate=1800)
+            self._animation.save(video_file_name, writer=writer)
+        except Exception as e:
+            print(e)
 
     def _pause_animation(self):
         """

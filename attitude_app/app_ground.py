@@ -73,8 +73,11 @@ def _start_playback_mode(tle_file_path, quat_file_path, start_line, end_line, st
     print("=============")
 
     v = visualizer.AttitudeVisualizer(adcs=adcs)
-    v.animate(sat_state_generator, interval=interval, save=video_export)
-    v.show()
+    v.animate(sat_state_generator, interval=interval)
+    if video_export:
+        v.export_mp4()
+    else:
+        v.show()
 
 
 def _background_udp_server(hostname, port, visualizer, tle):
