@@ -64,10 +64,15 @@ def _start_playback_mode(tle_file_path, quat_file_path, start_line, end_line, st
     print("=============")
 
     for sat_state in sat_state_generator:
-        print("----")
-        print(sat_state.to_attitude_string())
+        if sat_state is not None:
+            print("----")
 
-        time.sleep(interval / 1000.0)
+            if sat_state != -1:
+                print(sat_state.to_attitude_string())
+            else:
+                print("Invalid SatState")
+
+            time.sleep(interval / 1000.0)
 
 
 def run(config_file_path):

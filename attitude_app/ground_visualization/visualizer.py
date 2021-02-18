@@ -446,6 +446,12 @@ class AttitudeVisualizer:
         sat_state : SatState
             The satellite data to use
         """
+        # when provided quaternion was invalid, the computed SatState == -1
+        # let's protect from updating in that case
+        if sat_state == -1:
+            print("AttitudeVisualizer._update(): invalid SatState provided, not updating")
+            return
+
         self._update_3d_view(sat_state)
         self._update_map_views(sat_state)
 
