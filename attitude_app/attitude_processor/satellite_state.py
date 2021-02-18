@@ -112,7 +112,7 @@ def compute_sat_state(timestamp, quat, TLE):
 
     Returns
     -------
-    The satellite state (SatState)
+    The satellite state (SatState) or -1 if the quaternion was invalid
     """
 
     q0, q1, q2, q3 = quat
@@ -175,6 +175,8 @@ def compute_sat_state(timestamp, quat, TLE):
 
         return SatState(sat_pos, lla, quat, (roll, pitch, yaw), nadir, angle_to_nadir, timestamp)
 
+    return -1
+
 
 def create_sat_state_generator(timestamped_quats, tle, step=1):
     """ Creates a simple satellite state generator using the prodived TLE and timestamped quaternions.
@@ -188,6 +190,11 @@ def create_sat_state_generator(timestamped_quats, tle, step=1):
     step: int
         a step of 1 means we return every quaternions, 2 means we return 1 quaternions every 2 quaternions and so on.
         Default value is 1.
+    Yields
+    ------
+    The satellite state (SatState) or -1 if the current quaternion was invalid
     """
     for i in range(0, len(timestamped_quats), step):
         yield compute_sat_state(timestamped_quats[i][0], timestamped_quats[i][1], tle)
+
+    yield None

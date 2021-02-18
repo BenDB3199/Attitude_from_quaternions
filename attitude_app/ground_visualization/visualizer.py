@@ -1,5 +1,6 @@
+import sys
 from datetime import datetime
-from math import radians, tan
+from math import radians, tan, degrees, acos
 
 import cartopy.crs as ccrs
 import ephem
@@ -9,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymap3d as pm
 from ground_visualization.plotters_utils import arc_points_between_vectors, los_to_earth
+from numpy import dot
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation as ro
 
@@ -18,14 +20,17 @@ Contains the visualizer class to display in 2D and 3D plots the spacecraft attit
 
 
 class AttitudeVisualizer:
-    def __init__(self):
+    def __init__(self, adcs="IADCS"):
         self._fig = plt.figure(figsize=(14, 7))
         self._fig.canvas.set_window_title("OPS-SAT attitude visualizer")
 
         self._init_3d_view()
         self._init_map_view()
+        self._init_modes_legend()
 
         self._camera_fov = 14.8  # camera fov in degrees (camera has square resolution so h_fov = v_fov)
+        self._adcs = adcs
+        self._adcs_color = "magenta" if self._adcs == "CADCS" else "chocolate"
 
     def _init_3d_view(self):
         """
@@ -47,6 +52,7 @@ class AttitudeVisualizer:
         self._nadir_vector_color = "hotpink"
         self._angle_to_nadir_color = "orange"
         self._nadir_line_style = "--"
+        self._timestamp_color = "black"
         self._camera_frustum_color = "turquoise"
         self._camera_frustum_scale = 0.5
         self._camera_frustum_linestyle = "--"
@@ -95,6 +101,10 @@ class AttitudeVisualizer:
         self._nadir_angle_text = self._ax3d.text2D(0.95, 0.95,
                                                    "{:.1f}°".format(0), transform=self._ax3d.transAxes,
                                                    color=self._angle_to_nadir_color, horizontalalignment='right')
+
+        # timestamp text
+        self._timestamp_text = self._ax3d.text2D(0.1, 0.95, "", transform=self._ax3d.transAxes,
+                                                 color=self._timestamp_color, horizontalalignment='left')
 
         # camera frustum
         self._camera_frustum_arrow3d = []
@@ -161,6 +171,30 @@ class AttitudeVisualizer:
                                                              linewidth=0.15, alpha=0.75)
         self._camera_coverage = None
 
+    def _init_modes_legend(self):
+        """
+        Initializes data related to the modes (LIVE/PLAYBACK) legend.
+        """
+        # run modes data
+        self._live_mode_color = "chartreuse"
+        self._live_mode_marker_style = ">"
+        self._live_mode_label = "LIVE"
+
+        self._playback_mode_color = "gold"
+        self._playback_mode_marker_style = "<"
+        self._playback_mode_label = "PLAYBACK"
+
+        self._paused_color = "red"
+        self._paused_marker_style = "s"
+        self._paused_label = "PAUSED"
+
+        # default mode is LIVE
+        self._current_mode_color = self._live_mode_color
+        self._current_mode_marker_style = self._live_mode_marker_style
+        self._current_mode_label = self._live_mode_label
+
+        self._mode_legend_handle = None
+
     def _draw_3d_eci_frame(self):
         """
         Draws the ECI coordinates frame in the 3D view.
@@ -200,20 +234,25 @@ class AttitudeVisualizer:
 	    sat_state : SatState
 	        The satellite data to use
         """
-        # compute S/C body frame in ECI coordinates
-        sc_body = np.array([[self._arrow_length3d, 0, 0], [0, self._arrow_length3d, 0], [0, 0, -self._arrow_length3d]])
+        # default mode is IADCS
         q0, q1, q2, q3 = sat_state.quat_attitude
-        rotation = ro.from_quat([q1, q2, q3, q0])
-        sc_body_eci = rotation.apply(sc_body)  # # SciPy uses the convention ([vector], scalar).
+        eci_to_body_ro = ro.from_quat([q1, q2, q3, q0])  # SciPy uses the convention ([vector], scalar)
+        rotation = eci_to_body_ro
+
+        # if CADCS, inverse the rotation
+        if self._adcs == "CADCS":
+            body_to_eci_ro = eci_to_body_ro.inv()
+            rotation = body_to_eci_ro
+
+        # compute S/C body frame in ECI coordinates
+        sc_body = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]]) * self._arrow_length3d
+        sc_body_eci = rotation.apply(sc_body)
         self._sc_body_eci = sc_body_eci
 
+        # draw S/C related artefacts
         self._draw_3d_sc_body(sat_state)
         self._draw_3d_camera_frustum(sat_state, rotation, sc_body)
         self._draw_3d_nadir(sat_state)
-
-        # draw square for satellite
-        self._sc_body_3d.set_data(np.array([sat_state.position.x]), np.array([sat_state.position.y]))
-        self._sc_body_3d.set_3d_properties(np.array([sat_state.position.z]))
 
     def _draw_3d_sc_body(self, sat_state):
         """ Draws the spacecraft body frame (x, y, -z).
@@ -229,7 +268,12 @@ class AttitudeVisualizer:
         # draw S/C body frame
         for axis in range(3):
             self._sc_body_arrow3d[axis].set_data(x, y, z, self._sc_body_eci[axis][0],
-                                                 self._sc_body_eci[axis][1], self._sc_body_eci[axis][2])
+                                                 self._sc_body_eci[axis][1],
+                                                 self._sc_body_eci[axis][2])
+
+        # draw square for satellite
+        self._sc_body_3d.set_data(np.array([x]), np.array([y]))
+        self._sc_body_3d.set_3d_properties(np.array(z))
 
     def _draw_3d_camera_frustum(self, sat_state, body_to_eci_ro, sc_body):
         """ Draws the satellite's camera frustum.
@@ -285,24 +329,26 @@ class AttitudeVisualizer:
         # origin of drawings
         x, y, z = sat_state.position.x, sat_state.position.y, sat_state.position.z
 
-        # draw nadir vector
         nadir = np.array(sat_state.nadir)
+        eci_z = self._sc_body_eci[2] / norm(self._sc_body_eci[2])
+        nadir_angle = degrees(acos(dot(eci_z, nadir)))
+        # print(sat_state.angle_to_nadir)
+
+        # draw nadir vector
         nadir *= self._arrow_length3d
         self._nadir_arrow.set_data(x, y, z, nadir[0], nadir[1], nadir[2])
 
         # draw arc to show angle between nadir and -z of S/C body frame
         arc_scale = 0.65
-        angle = sat_state.angle_to_nadir
         arc_points = arc_points_between_vectors(x, y, z,
                                                 nadir * arc_scale, self._sc_body_eci[2] * arc_scale,
-                                                radians(angle),
+                                                radians(nadir_angle),
                                                 10)
         self._arc3d.set_data(arc_points[:, 0], arc_points[:, 1])
         self._arc3d.set_3d_properties(arc_points[:, 2])
 
-        # add text to show angle value
-        arc_middle = arc_points[len(arc_points) // 2]
-        self._nadir_angle_text.set_text("{:.1f}°".format(angle))
+        # add text to show nadir_angle value
+        self._nadir_angle_text.set_text("{:.1f}°".format(nadir_angle))
 
     def _update_3d_view(self, sat_state):
         """ Updates the 3D view of the visualizer with the given satellite data.
@@ -314,7 +360,7 @@ class AttitudeVisualizer:
         """
         self._draw_3d_spacecraft(sat_state)
 
-        self._ax3d.set_title("Attitude at {}".format(sat_state.timestamp))
+        self._timestamp_text.set_text("Attitude at {}".format(sat_state.timestamp))
 
     def _update_flat_map_view(self, sat_state, nadir_ll, minus_z_ll):
         """ Updates the flat map view of the visualizer with the given satellite data.
@@ -405,6 +451,12 @@ class AttitudeVisualizer:
         sat_state : SatState
             The satellite data to use
         """
+        # when provided quaternion was invalid, the computed SatState == -1
+        # let's protect from updating in that case
+        if sat_state == -1:
+            print("AttitudeVisualizer._update(): invalid SatState provided, not updating")
+            return
+
         self._update_3d_view(sat_state)
         self._update_map_views(sat_state)
 
@@ -429,7 +481,7 @@ class AttitudeVisualizer:
         # show
         plt.show()
 
-    def animate(self, sat_state_generator, interval=50, save=False):
+    def animate(self, sat_state_generator, interval=50):
         """ Visualize multiple satellite states frame by frame. The visualizer updates itself with new satellite state
         provided by the satellite state generator, there is no need to call the update() method.
 
@@ -439,9 +491,13 @@ class AttitudeVisualizer:
             generator returning the next satellite state to use for the next frame
         interval : int
             interval between frames in milliseconds
-        save : bool
-            If true, saves the frames in an mp4 file instead of showing them
         """
+        self._animation_interval = interval
+
+        # update legend to PLAYBACK mode
+        self._update_modes_legend(self._playback_mode_color,
+                                  self._playback_mode_marker_style,
+                                  self._playback_mode_label)
 
         # catch keyboard key press event
         def key_press_event(event):
@@ -450,42 +506,50 @@ class AttitudeVisualizer:
 
         self._fig.canvas.mpl_connect('key_press_event', key_press_event)
 
-        # define frame function
-        def on_new_frame(frame_number):
-            sat_state = next(sat_state_generator, None)
-            if sat_state is not None:
-                # force draw on first frame (doesn't draw otherwise, not sure why)
-                if frame_number == 0:
-                    self.update(sat_state)
-                else:
-                    self._update(sat_state)
-            else:
+        # define new frame function
+        def on_new_frame(sat_state):
+            # if end of generator is reached, we exit
+            if sat_state is None:
                 exit(0)
+            # otherwise update frame with latest data
+            self._update(sat_state)
 
         self._is_animation_running = True
-        self._animation = animation.FuncAnimation(self._fig, on_new_frame, interval=interval)
+        self._animation = animation.FuncAnimation(self._fig, on_new_frame, sat_state_generator,
+                                                  save_count=sys.maxsize, interval=self._animation_interval)
 
-        # setup saving is requested
-        if save:
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            video_file_name = 'attitude-{}.mp4'.format(timestamp)
+    def export_mp4(self):
+        """
+        Exports the animation frames in an mp4 file instead of showing them.
+        If this is called, calling show() won't do anything.
+        """
+        self._add_legend()
 
-            print("Exporting {}".format(video_file_name))
-            try:
-                Writer = animation.writers['ffmpeg']
-                writer = Writer(fps=int(1000 / interval), metadata=dict(artist='Me'), bitrate=1800)
-                self._animation.save(video_file_name, writer=writer)
-            except Exception as e:
-                print(e)
+        # prepare file name
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        video_file_name = 'attitude-{}.mp4'.format(timestamp)
+        print("Exporting {}".format(video_file_name))
+
+        # save the animation
+        try:
+            Writer = animation.writers['ffmpeg']
+            writer = Writer(fps=int(1000 / self._animation_interval), metadata=dict(artist='Me'), bitrate=1800)
+            self._animation.save(video_file_name, writer=writer)
+        except Exception as e:
+            print(e)
 
     def _pause_animation(self):
         """
         Pauses or start the visualizer animation.
         """
         if self._is_animation_running:
+            self._update_modes_legend(self._paused_color, self._paused_marker_style, self._paused_label)
             self._animation.event_source.stop()
             self._is_animation_running = False
         else:
+            self._update_modes_legend(self._playback_mode_color,
+                                      self._playback_mode_marker_style,
+                                      self._playback_mode_label)
             self._animation.event_source.start()
             self._is_animation_running = True
 
@@ -544,9 +608,44 @@ class AttitudeVisualizer:
                                                markersize=8, label='Camera coverage')
         self._fig.legend(handles=[nadir_coverage_legend, camera_coverage_legend], loc="lower right")
 
+    def _add_adcs_legend(self):
+        """
+        Adds the legend showing from which ADCS the quaternion messages should come from.
+        """
+        adcs_legend = mlines.Line2D([], [], color=self._adcs_color,
+                                    marker='s', linestyle='None',
+                                    markersize=8, label=self._adcs + " MODE")
+        self._fig.legend(handles=[adcs_legend], loc="lower center")
+
+    def _add_modes_legend(self):
+        """
+        Adds legend for the run modes (LIVE/PLAYBACK).
+        """
+        if self._mode_legend_handle is not None:
+            self._mode_legend_handle.remove()
+
+        self._mode_legend = mlines.Line2D([], [], color=self._current_mode_color,
+                                          marker=self._current_mode_marker_style, linestyle='None',
+                                          markersize=8, label=self._current_mode_label)
+
+        self._mode_legend_handle = self._fig.legend(handles=[self._mode_legend], loc="upper center")
+
     def _add_legend(self):
         """
         Adds the legend for all the views of the visualizer.
         """
         self._add_3d_view_legend()
         self._add_map_views_legend()
+        self._add_adcs_legend()
+        self._add_modes_legend()
+
+    def _update_modes_legend(self, color, marker_style, label):
+        """
+        Updates the modes legend.
+        """
+        self._current_mode_color = color
+        self._current_mode_marker_style = marker_style
+        self._current_mode_label = label
+
+        self._add_modes_legend()
+        plt.draw()

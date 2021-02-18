@@ -15,7 +15,7 @@ def load_tle_and_quat(tle_file_path, quat_file_path, start_line=1, end_line=1):
     start_line: int
         first line to read in timestamped quaternions file
     end_line: int
-        last line to read in timestamped quaternions file
+        last line to read in timestamped quaternions file, set it to -1 to go to end of file
 
     Returns
     -------
@@ -40,7 +40,7 @@ def load_quaternions(quat_file_path, start_line=1, end_line=1):
     start_line: int
         first line to read in the file
     end_line: int
-        last line to read in the file
+        last line to read in the file, set it to -1 to go to end of file
 
     Returns
     -------
