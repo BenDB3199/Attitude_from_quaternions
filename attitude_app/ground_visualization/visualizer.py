@@ -52,6 +52,7 @@ class AttitudeVisualizer:
         self._nadir_vector_color = "hotpink"
         self._angle_to_nadir_color = "orange"
         self._nadir_line_style = "--"
+        self._timestamp_color = "black"
         self._camera_frustum_color = "turquoise"
         self._camera_frustum_scale = 0.5
         self._camera_frustum_linestyle = "--"
@@ -100,6 +101,10 @@ class AttitudeVisualizer:
         self._nadir_angle_text = self._ax3d.text2D(0.95, 0.95,
                                                    "{:.1f}°".format(0), transform=self._ax3d.transAxes,
                                                    color=self._angle_to_nadir_color, horizontalalignment='right')
+
+        # timestamp text
+        self._timestamp_text = self._ax3d.text2D(0.1, 0.95, "", transform=self._ax3d.transAxes,
+                                                 color=self._timestamp_color, horizontalalignment='left')
 
         # camera frustum
         self._camera_frustum_arrow3d = []
@@ -355,7 +360,7 @@ class AttitudeVisualizer:
         """
         self._draw_3d_spacecraft(sat_state)
 
-        self._ax3d.set_title("Attitude at {}".format(sat_state.timestamp))
+        self._timestamp_text.set_text("Attitude at {}".format(sat_state.timestamp))
 
     def _update_flat_map_view(self, sat_state, nadir_ll, minus_z_ll):
         """ Updates the flat map view of the visualizer with the given satellite data.
