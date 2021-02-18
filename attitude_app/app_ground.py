@@ -47,7 +47,7 @@ def _start_playback_mode(tle_file_path, quat_file_path, start_line, end_line, st
     start_line: int
         first line to read in timestamped quaternions file
     end_line: int
-        last line to read in timestamped quaternions file
+        last line to read in timestamped quaternions file, set it to -1 to go to end of file
     step: int
         read every step line(s) from start_line to end_line
     interval: int
